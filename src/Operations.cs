@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -19,7 +19,7 @@ namespace TrayLeaf {
   public string Close(AppRow row,Func<AppRow,bool> permitForce) {
    try {
     if(ProcessService.Graceful(row)>0) {
-     if(!permitForce(row)){State(row,"cancelled","已放弃强制关闭；可能已有部分同路径进程退出");return "已取消 / 部分退出";}
+     if(row.Risk&&!permitForce(row)){State(row,"cancelled","已放弃强制关闭；可能已有部分同路径进程退出");return "已取消 / 部分退出";}
      ProcessService.Force(row);
     }
     if(row.Processes.Any(ProcessService.Alive))throw new IOException("仍有同路径进程未退出");

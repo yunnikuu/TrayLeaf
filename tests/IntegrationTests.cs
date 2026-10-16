@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -50,7 +50,7 @@ class IntegrationTests {
    row.ItemStatus="closed";row.Path=Path.Combine(root,"nonexistent.exe");Check("launch-failure-retryable",ops.Restore(row).StartsWith("启动失败")&&row.CanRestore);
    Throws("invalid-prepare-refused",()=>ops.Prepare(new List<AppRow>{row}));
    p=Start("--ignore-close");row=Row(p,"");ops.Prepare(new List<AppRow>{row});Check("force-close-only-owned-fixture",ops.Close(row,x=>true)=="已关闭"&&p.WaitForExit(2000));Stop(p);
-   p=Start("--ignore-close");row=Row(p,"");ops.Prepare(new List<AppRow>{row});Check("decline-force-remains-alive",ops.Close(row,x=>false).StartsWith("已取消")&&!p.HasExited&&row.ItemStatus=="cancelled");Stop(p);
+   p=Start("--ignore-close");row=Row(p,"");ops.Prepare(new List<AppRow>{row});row.Risk=true;Check("decline-force-remains-alive",ops.Close(row,x=>false).StartsWith("已取消")&&!p.HasExited&&row.ItemStatus=="cancelled");Stop(p);
    p=Start("--tray-only");row=Row(p,"");Thread.Sleep(1000);var scan=ProcessService.Scan(false,false);bool tray=scan.Rows.Any(x=>x.Processes.Any(id=>id.Pid==p.Id));if(tray)Check("default-scan-tray-only-fixture",true);else Warn("tray-only-fixture-not-confirmed-on-current-Windows; all-process-mode-available");Stop(p);
    row=new AppRow{Name="保留批次",Path=exe,Args=""};long pending=ops.Prepare(new List<AppRow>{row});ops.State(row,"closed","");long uncertain=ops.Prepare(new List<AppRow>{new AppRow{Name="中断",Path=exe,Args=""}});ops.RecoverInterrupted();Check("interrupted-operation-uncertain",ops.History(uncertain)[0].ItemStatus=="uncertain");
    for(int i=0;i<22;i++){var r=new AppRow{Name="history",Path=exe,Args=""};ops.Prepare(new List<AppRow>{r});ops.State(r,"launched","");}db.Prune();Check("prune-retains-pending",db.Query("SELECT id FROM batches WHERE id=?",pending.ToString()).Count==1);Check("prune-retains-uncertain",db.Query("SELECT id FROM batches WHERE id=?",uncertain.ToString()).Count==1);

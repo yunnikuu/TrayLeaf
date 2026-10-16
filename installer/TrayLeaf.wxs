@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="{2A9E4A72-61FB-41B1-866B-15EC6D1A7BA0}" Name="托盘管家 TrayLeaf" Language="2052" Version="0.2.1" Manufacturer="TrayLeaf" UpgradeCode="{49F5C6BF-41D9-5CF1-8FFA-917E45CCB2DC}" Codepage="936">
+    <Package Id="*" InstallerVersion="500" Compressed="yes" InstallScope="perUser" Platform="x64" Description="托盘管家 TrayLeaf v0.2.1 安装程序" Comments="Windows 10/11 x64；当前用户安装；程序运行时仍请求管理员权限。" />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+    <MajorUpgrade DowngradeErrorMessage="已安装更高版本的 TrayLeaf，请先卸载较新版本。" Schedule="afterInstallInitialize" />
+    <Property Id="ARPPRODUCTICON" Value="TrayLeafIcon" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+    <SetProperty Id="ARPINSTALLLOCATION" Value="[INSTALLFOLDER]" After="CostFinalize" />
+    <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" />
+    <Property Id="REBOOT" Value="ReallySuppress" />
+    <Property Id="DESKTOP_SHORTCUT" Value="1" Secure="yes" />
+    <!-- Remember a custom destination during maintenance/uninstall as well as install. -->
+    <Property Id="INSTALLFOLDER" Secure="yes">
+      <RegistrySearch Id="SavedInstallFolder" Root="HKCU" Key="Software\TrayLeaf\Installer" Name="InstallPath" Type="raw" Win64="yes" />
+    </Property>
+    <Property Id="NETFRAMEWORK48" Secure="yes">
+      <RegistrySearch Id="Net48" Root="HKLM" Key="SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" Name="Release" Type="raw" Win64="yes" />
+    </Property>
+    <!-- MSI reports legacy OS versions on modern Windows; read the real build instead. -->
+    <Property Id="OSBUILD" Secure="yes">
+      <RegistrySearch Id="RealWindowsBuild" Root="HKLM" Key="SOFTWARE\Microsoft\Windows NT\CurrentVersion" Name="CurrentBuildNumber" Type="raw" Win64="yes" />
+    </Property>
+    <Condition Message="需要 Windows 10/11 x64。">Installed OR (VersionNT64 AND OSBUILD &gt;= 10240)</Condition>
+    <Condition Message="请先安装 Microsoft .NET Framework 4.8 或更高的 4.x 就地版本，再运行本安装程序。">Installed OR NETFRAMEWORK48 &gt;= &quot;#528040&quot;</Condition>
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="LocalAppDataFolder">
+        <Directory Id="ProgramsFolder" Name="Programs">
+          <Directory Id="INSTALLFOLDER" Name="TrayLeaf">
+            <Component Id="ApplicationFiles" Guid="{544F9036-1516-541E-A787-F4AABB6225D4}" Win64="yes">
+              <File Id="AppExe" Name="TrayLeaf.exe" Source="$(var.PayloadDir)\TrayLeaf.exe" />
+              <File Id="AppConfig" Name="TrayLeaf.exe.config" Source="$(var.PayloadDir)\TrayLeaf.exe.config" />
+              <File Id="Usage" Name="使用说明.txt" Source="$(var.PayloadDir)\使用说明.txt" />
+              <File Id="Changelog" Name="更新说明.txt" Source="$(var.PayloadDir)\更新说明.txt" />
+              <File Id="ToolLicense" Name="WiX-LICENSE.txt" Source="WiX-LICENSE.txt" />
+              <RegistryValue Root="HKCU" Key="Software\TrayLeaf\Installer" Name="InstallPath" Type="string" Value="[INSTALLFOLDER]" KeyPath="yes" />
+              <RemoveFolder Id="RemoveInstallFolder" On="uninstall" />
+              <RemoveFolder Id="RemoveEmptyProgramsFolder" Directory="ProgramsFolder" On="uninstall" />
+            </Component>
+          </Directory>
+        </Directory>
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="AppMenuFolder" Name="TrayLeaf">
+          <Component Id="StartMenuShortcut" Guid="{36614DEE-7F5A-50E3-860C-8585467DE1EA}" Win64="yes">
+            <Shortcut Id="StartMenuLink" Name="托盘管家 TrayLeaf" Target="[INSTALLFOLDER]TrayLeaf.exe" WorkingDirectory="INSTALLFOLDER" Icon="TrayLeafIcon" Description="游戏前关闭选定后台，结束后按需重新启动" />
+            <Shortcut Id="UsageLink" Name="使用说明" Target="[INSTALLFOLDER]使用说明.txt" WorkingDirectory="INSTALLFOLDER" />
+            <RemoveFolder Id="RemoveMenu" On="uninstall" />
+            <RegistryValue Root="HKCU" Key="Software\TrayLeaf\Installer" Name="StartMenu" Type="integer" Value="1" KeyPath="yes" />
+          </Component>
+        </Directory>
+      </Directory>
+      <Directory Id="DesktopFolder">
+        <Component Id="DesktopShortcut" Guid="{DB2E7DA1-46E7-5DAA-977F-1E38BB63AE51}" Win64="yes">
+          <Condition>DESKTOP_SHORTCUT = "1"</Condition>
+          <Shortcut Id="DesktopLink" Name="托盘管家 TrayLeaf" Target="[INSTALLFOLDER]TrayLeaf.exe" WorkingDirectory="INSTALLFOLDER" Icon="TrayLeafIcon" />
+          <RegistryValue Root="HKCU" Key="Software\TrayLeaf\Installer" Name="Desktop" Type="integer" Value="1" KeyPath="yes" />
+        </Component>
+      </Directory>
+    </Directory>
+    <Icon Id="TrayLeafIcon" SourceFile="..\assets\TrayLeaf.ico" />
+    <Feature Id="Main" Title="TrayLeaf" Level="1" Absent="disallow">
+      <ComponentRef Id="ApplicationFiles" /><ComponentRef Id="StartMenuShortcut" /><ComponentRef Id="DesktopShortcut" />
+    </Feature>
+    <WixVariable Id="WixUIBannerBmp" Value="banner.bmp" />
+    <WixVariable Id="WixUIDialogBmp" Value="dialog.bmp" />
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+    <UI Id="TrayLeafUI">
+      <TextStyle Id="WixUI_Font_Normal" FaceName="Microsoft YaHei" Size="9" />
+      <TextStyle Id="WixUI_Font_Bigger" FaceName="Microsoft YaHei" Size="13" />
+      <TextStyle Id="WixUI_Font_Title" FaceName="Microsoft YaHei" Size="10" Bold="yes" />
+      <Property Id="DefaultUIFont" Value="WixUI_Font_Normal" />
+      <Property Id="WixUI_Mode" Value="InstallDir" />
+      <DialogRef Id="BrowseDlg" /><DialogRef Id="DiskCostDlg" /><DialogRef Id="ErrorDlg" /><DialogRef Id="FatalError" /><DialogRef Id="FilesInUse" /><DialogRef Id="MsiRMFilesInUse" /><DialogRef Id="PrepareDlg" /><DialogRef Id="ProgressDlg" /><DialogRef Id="ResumeDlg" /><DialogRef Id="UserExit" />
+      <Dialog Id="OptionsDlg" Width="370" Height="270" Title="[ProductName] 安装向导">
+        <Control Id="Banner" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="yes" Text="WixUI_Bmp_Banner" />
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="300" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}安装选项" />
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="16" Transparent="yes" NoPrefix="yes" Text="选择快捷方式，其他设置保持轻量。" />
+        <Control Id="Desktop" Type="CheckBox" X="25" Y="67" Width="320" Height="20" Property="DESKTOP_SHORTCUT" CheckBoxValue="1" Text="创建桌面快捷方式" />
+        <Control Id="Notice" Type="Text" X="25" Y="104" Width="320" Height="91" Text="安装版本：v0.2.1&#13;&#10;仅为当前 Windows 用户安装；开始菜单快捷方式将自动创建。&#13;&#10;运行程序时仍会请求管理员权限。安装后不会自动运行。&#13;&#10;卸载保留个人设置与恢复记录，不修改系统服务或自启动。" />
+        <Control Id="Line" Type="Line" X="0" Y="234" Width="370" Height="0" />
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="上一步(&amp;B)" />
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="下一步(&amp;N)" />
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="取消"><Publish Event="SpawnDialog" Value="CancelDlg">1</Publish></Control>
+      </Dialog>
+      <Publish Dialog="BrowseDlg" Control="OK" Event="DoAction" Value="WixUIValidatePath" Order="3">1</Publish>
+      <Publish Dialog="BrowseDlg" Control="OK" Event="SpawnDialog" Value="InvalidDirDlg" Order="4"><![CDATA[NOT WIXUI_DONTVALIDATEPATH AND WIXUI_INSTALLDIR_VALID<>"1"]]></Publish>
+      <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999">1</Publish>
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg">NOT Installed</Publish>
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg">Installed AND PATCH</Publish>
+      <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg">1</Publish>
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="SetTargetPath" Value="[WIXUI_INSTALLDIR]" Order="1">1</Publish>
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="DoAction" Value="WixUIValidatePath" Order="2">NOT WIXUI_DONTVALIDATEPATH</Publish>
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="SpawnDialog" Value="InvalidDirDlg" Order="3"><![CDATA[NOT WIXUI_DONTVALIDATEPATH AND WIXUI_INSTALLDIR_VALID<>"1"]]></Publish>
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="OptionsDlg" Order="4">WIXUI_DONTVALIDATEPATH OR WIXUI_INSTALLDIR_VALID="1"</Publish>
+      <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Property="_BrowseProperty" Value="[WIXUI_INSTALLDIR]" Order="1">1</Publish>
+      <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Event="SpawnDialog" Value="BrowseDlg" Order="2">1</Publish>
+      <Publish Dialog="OptionsDlg" Control="Back" Event="NewDialog" Value="InstallDirDlg">1</Publish>
+      <Publish Dialog="OptionsDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="OptionsDlg" Order="1">NOT Installed</Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg" Order="2">Installed AND NOT PATCH</Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="2">Installed AND PATCH</Publish>
+      <Publish Dialog="MaintenanceWelcomeDlg" Control="Next" Event="NewDialog" Value="MaintenanceTypeDlg">1</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg">1</Publish>
+    </UI>
+    <UIRef Id="WixUI_Common" />
+  </Product>
+</Wix>

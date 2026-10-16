@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -86,6 +86,7 @@ namespace TrayLeaf {
    w.Closing+=delegate(object s,CancelEventArgs e){if(!exiting){e.Cancel=true;w.Hide();}};
    w.StateChanged+=delegate{if(!demo&&w.WindowState==WindowState.Minimized&&Setting("minimizeTray",true))w.Hide();};
    w.SourceInitialized+=delegate{handle=new WindowInteropHelper(w).Handle;source=HwndSource.FromHwnd(handle);source.AddHook(Hook);if(!demo)try{RegisterKeys(closeKey,restoreKey);}catch(Exception ex){Status("快捷键未启用："+ex.Message);w.Dispatcher.BeginInvoke(new Action(delegate{Error(ex);}));}};
+   TablePresentation.Configure(w,Get<DataGrid>("ProcessGrid"),Get<DataGrid>("RestoreGrid"));
    app.DispatcherUnhandledException+=delegate(object s,DispatcherUnhandledExceptionEventArgs e){e.Handled=true;Error(e.Exception);};
    initializing=false;
    if(demo){FillDemo();w.Show();if(smokePath==null)return;var timer=new DispatcherTimer{Interval=TimeSpan.FromMilliseconds(1000)};timer.Tick+=delegate{timer.Stop();try{w.UpdateLayout();var content=(FrameworkElement)w.Content;var bitmap=new RenderTargetBitmap((int)content.ActualWidth,(int)content.ActualHeight,96,96,PixelFormats.Pbgra32);bitmap.Render(content);var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));using(var f=File.Create(smokePath))encoder.Save(f);}catch(Exception ex){File.WriteAllText(smokePath+".error.txt",ex.ToString());}exiting=true;w.Close();app.Shutdown();};timer.Start();return;}
@@ -121,11 +122,11 @@ namespace TrayLeaf {
   async void CloseSelected(){if(busy||demo)return;SetBusy(true);try{await CloseCore();}catch(Exception ex){Error(ex);}finally{SetBusy(false);}}
   async Task CloseCore(){
    var rows=db.FilterVisible(current).Where(x=>x.Selected&&x.Processes.Count>0).ToList();if(rows.Count==0){Show();Navigate(0);Status("请先勾选正在运行的程序。未关闭任何程序。");return;}
-   if(!Ask("将关闭 "+rows.Count+" 个程序组（相同 EXE 路径的全部实例）。\n\n"+String.Join("\n",rows.Take(12).Select(x=>"• "+x.Name))+"\n\n请先保存工作。恢复只会重新启动程序，不恢复文件、窗口或会话。","确认关闭所选程序"))return;
+   if(!Ask("将关闭 "+rows.Count+" 个程序组（相同 EXE 路径的全部实例）。\n\n"+String.Join("\n",rows.Take(12).Select(x=>"• "+x.Name))+"\n\n请先保存工作。将先请求程序退出；约 2.5 秒后仍运行的普通应用会自动结束，未保存的数据可能丢失。系统 / 服务进程强制结束前另行确认。\n\n恢复只会重新启动程序，不恢复文件、窗口或会话。","确认关闭所选程序"))return;
    var risks=rows.Where(x=>x.Risk).ToList();if(risks.Count>0&&Setting("warnRisk",true)&&!Ask("以下程序涉及系统关键组件或 Windows 服务：\n\n"+String.Join("\n",risks.Select(x=>x.ProcessName+" — "+x.RiskReason))+"\n\n继续可能导致服务中断、黑屏、注销或系统崩溃。是否仍然继续？\n不会绕过 Windows 自身的访问保护。","系统 / 服务进程风险提醒"))return;
    if(rows.Any(x=>!x.ArgsKnown)&&!Ask("部分程序的启动参数无法读取。已知路径仍会保存，但重新启动的行为可能与原来不同。\n可取消后通过“启动信息”手动补充参数。是否继续？","启动信息不完整"))return;
    long batch=ops.Prepare(rows);int done=0;
-   foreach(var row in rows){row.State="正在关闭…";Status("正在处理："+row.Name);string result=await Task.Run(()=>ops.Close(row,r=>(bool)w.Dispatcher.Invoke(new Func<bool>(()=>Ask(r.Name+" 未在 5 秒内正常退出（托盘程序可能没有主窗口）。\n强制结束可能丢失未保存数据。是否强制关闭？","确认强制关闭")))));row.State=result;if(row.ItemStatus=="closed")done++;}
+   foreach(var row in rows){row.State="正在关闭…";Status("正在处理："+row.Name);string result=await Task.Run(()=>ops.Close(row,r=>(bool)w.Dispatcher.Invoke(new Func<bool>(()=>Ask(r.Name+" 属于系统 / 服务进程，退出请求后仍在运行。\n强制结束可能中断服务、导致黑屏或系统崩溃，也可能丢失未保存数据。是否仍要强制结束？","确认强制关闭")))));row.State=result;if(row.ItemStatus=="closed")done++;}
    db.Prune();ReloadHistory(batch);Status("本批次 "+done+" / "+rows.Count+" 组已关闭。未成功关闭的记录不会作为待恢复项。");Navigate(1);
   }
   void ReloadHistory(long preferred){loading=true;try{var rows=db.Query("SELECT b.id,b.created,COUNT(i.id),SUM(CASE WHEN i.status IN ('closed','launchfailed') THEN 1 ELSE 0 END) FROM batches b LEFT JOIN items i ON b.id=i.batch GROUP BY b.id ORDER BY b.id DESC");var batches=rows.Select(x=>new BatchInfo{Id=Int64.Parse(x[0]),Label=x[1]+"  ·  "+x[2]+" 项 / "+x[3]+" 待恢复"}).ToList();var combo=Get<ComboBox>("BatchCombo");combo.ItemsSource=batches;combo.SelectedItem=batches.FirstOrDefault(x=>x.Id==preferred)??batches.FirstOrDefault();}finally{loading=false;}LoadHistory();}

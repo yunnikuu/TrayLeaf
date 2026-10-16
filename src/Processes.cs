@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -70,8 +70,21 @@ namespace TrayLeaf {
   }
   public static bool Alive(Identity expected) {try{using(var p=Process.GetProcessById(expected.Pid))return Verify(p,expected);}catch(ArgumentException){return false;}}
   public static int Graceful(AppRow row) {
-   foreach(var id in row.Processes)try{using(var p=Process.GetProcessById(id.Pid)){if(Verify(p,id))p.CloseMainWindow();}}catch(ArgumentException){}
-   DateTime end=DateTime.UtcNow.AddSeconds(5);while(DateTime.UtcNow<end){if(!row.Processes.Any(Alive))return 0;Thread.Sleep(100);}return row.Processes.Count(Alive);
+   // A tray-only application may own hidden top-level windows but no MainWindowHandle.
+   // Only post to windows owned by the recorded identities; never send a desktop-wide close.
+   bool requested=false;
+   foreach(var id in row.Processes)try{using(var p=Process.GetProcessById(id.Pid)){
+    if(!Verify(p,id))continue;
+    Native.EnumWindows(delegate(IntPtr hwnd,IntPtr unused){
+     if(Native.Pid(hwnd)==(uint)id.Pid&&!p.HasExited)
+      requested=Native.PostMessage(hwnd,0x0010,IntPtr.Zero,IntPtr.Zero)||requested;
+     return true;
+    },IntPtr.Zero);
+   }}catch(ArgumentException){}
+   if(!requested)return row.Processes.Count(Alive);
+   var clock=Stopwatch.StartNew();
+   while(clock.ElapsedMilliseconds<2500){if(!row.Processes.Any(Alive))return 0;Thread.Sleep(50);}
+   return row.Processes.Count(Alive);
   }
   public static void Force(AppRow row) {
    foreach(var id in row.Processes){if(id.Pid<=4||id.Pid==Process.GetCurrentProcess().Id)throw new InvalidOperationException("该系统保留进程或工具自身不能通过此工具结束");try{using(var p=Process.GetProcessById(id.Pid)){if(Verify(p,id)){p.Kill();if(!p.WaitForExit(4000))throw new IOException("结束请求已发送，但进程仍未退出");}}}catch(ArgumentException){}}
