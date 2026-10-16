@@ -2,7 +2,8 @@
 
 <p align="center">Windows 10/11 托盘工具</p>
 <p align="center">游戏前关闭选定后台 结束后按需重新启动</p>
-![主界面（示例数据）](docs/images/main.png)
+
+![主界面](docs/images/main.png)
 
 ## 功能
 
