@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -30,7 +30,7 @@ namespace TrayLeaf {
   public string RiskText {get{return Risk?"系统 / 服务":"普通应用";}}
   public ImageSource Icon {get;set;}
   public List<Identity> Processes=new List<Identity>();public long ItemId;string itemStatus;public string ItemStatus {get{return itemStatus;}set{itemStatus=value;Change("CanRestore");}}
-  public bool CanRestore {get{return ItemStatus=="closed"||ItemStatus=="launchfailed";}}
+  public bool CanRestore {get{return ItemStatus=="closed"||ItemStatus=="launchfailed"||ItemStatus=="configured";}}
  }
  public class ProcInfo {public int Id,Parent;public string Name,Path,Command;public long Started;public double Memory;public bool Service,Critical;}
  public class ScanResult {public List<AppRow> Rows=new List<AppRow>();public string Note="";public int Candidates;}

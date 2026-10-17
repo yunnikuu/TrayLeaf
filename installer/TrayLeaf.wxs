@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-  <Product Id="{2A9E4A72-61FB-41B1-866B-15EC6D1A7BA0}" Name="托盘管家 TrayLeaf" Language="2052" Version="0.2.1" Manufacturer="TrayLeaf" UpgradeCode="{49F5C6BF-41D9-5CF1-8FFA-917E45CCB2DC}" Codepage="936">
-    <Package Id="*" InstallerVersion="500" Compressed="yes" InstallScope="perUser" Platform="x64" Description="托盘管家 TrayLeaf v0.2.1 安装程序" Comments="Windows 10/11 x64；当前用户安装；程序运行时仍请求管理员权限。" />
+  <Product Id="{66DBC3C5-C6B5-5B69-BA2F-68FFBB001A27}" Name="托盘管家 TrayLeaf" Language="2052" Version="0.3.2" Manufacturer="TrayLeaf" UpgradeCode="{49F5C6BF-41D9-5CF1-8FFA-917E45CCB2DC}" Codepage="936">
+    <Package Id="*" InstallerVersion="500" Compressed="yes" InstallScope="perUser" Platform="x64" Description="托盘管家 TrayLeaf v0.3.2 安装程序" Comments="Windows 10/11 x64；当前用户安装；程序运行时仍请求管理员权限。" />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
     <MajorUpgrade DowngradeErrorMessage="已安装更高版本的 TrayLeaf，请先卸载较新版本。" Schedule="afterInstallInitialize" />
     <Property Id="ARPPRODUCTICON" Value="TrayLeafIcon" />
@@ -30,10 +30,10 @@
             <Component Id="ApplicationFiles" Guid="{544F9036-1516-541E-A787-F4AABB6225D4}" Win64="yes">
               <File Id="AppExe" Name="TrayLeaf.exe" Source="$(var.PayloadDir)\TrayLeaf.exe" />
               <File Id="AppConfig" Name="TrayLeaf.exe.config" Source="$(var.PayloadDir)\TrayLeaf.exe.config" />
-              <File Id="Usage" Name="使用说明.txt" Source="$(var.PayloadDir)\使用说明.txt" />
-              <File Id="Changelog" Name="更新说明.txt" Source="$(var.PayloadDir)\更新说明.txt" />
               <File Id="ToolLicense" Name="WiX-LICENSE.txt" Source="WiX-LICENSE.txt" />
-              <RegistryValue Root="HKCU" Key="Software\TrayLeaf\Installer" Name="InstallPath" Type="string" Value="[INSTALLFOLDER]" KeyPath="yes" />
+              <RemoveFile Id="RemoveOldUsage" Name="使用说明.txt" On="install" />
+            <RemoveFile Id="RemoveOldChangelog" Name="更新说明.txt" On="install" />
+            <RegistryValue Root="HKCU" Key="Software\TrayLeaf\Installer" Name="InstallPath" Type="string" Value="[INSTALLFOLDER]" KeyPath="yes" />
               <RemoveFolder Id="RemoveInstallFolder" On="uninstall" />
               <RemoveFolder Id="RemoveEmptyProgramsFolder" Directory="ProgramsFolder" On="uninstall" />
             </Component>
@@ -44,7 +44,7 @@
         <Directory Id="AppMenuFolder" Name="TrayLeaf">
           <Component Id="StartMenuShortcut" Guid="{36614DEE-7F5A-50E3-860C-8585467DE1EA}" Win64="yes">
             <Shortcut Id="StartMenuLink" Name="托盘管家 TrayLeaf" Target="[INSTALLFOLDER]TrayLeaf.exe" WorkingDirectory="INSTALLFOLDER" Icon="TrayLeafIcon" Description="游戏前关闭选定后台，结束后按需重新启动" />
-            <Shortcut Id="UsageLink" Name="使用说明" Target="[INSTALLFOLDER]使用说明.txt" WorkingDirectory="INSTALLFOLDER" />
+            <RemoveFile Id="RemoveOldUsageShortcut" Name="使用说明.lnk" On="install" />
             <RemoveFolder Id="RemoveMenu" On="uninstall" />
             <RegistryValue Root="HKCU" Key="Software\TrayLeaf\Installer" Name="StartMenu" Type="integer" Value="1" KeyPath="yes" />
           </Component>
@@ -77,7 +77,7 @@
         <Control Id="Title" Type="Text" X="15" Y="6" Width="300" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}安装选项" />
         <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="16" Transparent="yes" NoPrefix="yes" Text="选择快捷方式，其他设置保持轻量。" />
         <Control Id="Desktop" Type="CheckBox" X="25" Y="67" Width="320" Height="20" Property="DESKTOP_SHORTCUT" CheckBoxValue="1" Text="创建桌面快捷方式" />
-        <Control Id="Notice" Type="Text" X="25" Y="104" Width="320" Height="91" Text="安装版本：v0.2.1&#13;&#10;仅为当前 Windows 用户安装；开始菜单快捷方式将自动创建。&#13;&#10;运行程序时仍会请求管理员权限。安装后不会自动运行。&#13;&#10;卸载保留个人设置与恢复记录，不修改系统服务或自启动。" />
+        <Control Id="Notice" Type="Text" X="25" Y="104" Width="320" Height="91" Text="安装版本：v0.3.2&#13;&#10;仅为当前 Windows 用户安装；开始菜单快捷方式将自动创建。&#13;&#10;运行程序时仍会请求管理员权限。安装后不会自动运行。&#13;&#10;卸载保留个人设置与恢复记录，不修改系统服务或自启动。" />
         <Control Id="Line" Type="Line" X="0" Y="234" Width="370" Height="0" />
         <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="上一步(&amp;B)" />
         <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="下一步(&amp;N)" />

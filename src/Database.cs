@@ -5,7 +5,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 namespace TrayLeaf {
- public sealed class Database:IDisposable {
+ public sealed partial class Database:IDisposable {
   IntPtr db; readonly object gate=new object(); public string FilePath {get;private set;}
   [DllImport("winsqlite3",CallingConvention=CallingConvention.Cdecl,CharSet=CharSet.Unicode)]static extern int sqlite3_open16(string file,out IntPtr db);
   [DllImport("winsqlite3",CallingConvention=CallingConvention.Cdecl)]static extern int sqlite3_close(IntPtr db);
@@ -29,7 +29,7 @@ namespace TrayLeaf {
    Execute("CREATE TABLE IF NOT EXISTS batches(id INTEGER PRIMARY KEY AUTOINCREMENT,created TEXT NOT NULL)");
    Execute("CREATE TABLE IF NOT EXISTS items(id INTEGER PRIMARY KEY AUTOINCREMENT,batch INTEGER NOT NULL REFERENCES batches(id) ON DELETE CASCADE,name TEXT NOT NULL,path TEXT NOT NULL,args TEXT NOT NULL,admin TEXT NOT NULL,status TEXT NOT NULL,error TEXT NOT NULL DEFAULT '')");
    Execute("CREATE TABLE IF NOT EXISTS hidden_programs(key TEXT PRIMARY KEY COLLATE NOCASE,name TEXT NOT NULL,path TEXT NOT NULL,process TEXT NOT NULL)");
-   Execute("PRAGMA user_version=2");
+   InitializeCollections();
   }
   IntPtr Prepare(string sql,string[] args) {
    IntPtr stmt;byte[] bytes=Encoding.UTF8.GetBytes(sql+"\0");int rc=sqlite3_prepare_v2(db,bytes,bytes.Length,out stmt,IntPtr.Zero);if(rc!=0)throw new IOException(Error());
@@ -47,8 +47,14 @@ namespace TrayLeaf {
   public void HidePrograms(IEnumerable<AppRow> rows){lock(gate){Execute("BEGIN IMMEDIATE");try{foreach(var r in rows){string key=ProgramKey(r);if(key.Length==0)throw new ArgumentException("无法识别要移除的程序");Execute("INSERT OR REPLACE INTO hidden_programs(key,name,path,process) VALUES(?,?,?,?)",key,r.Name??r.ProcessName,r.Path??"",r.ProcessName??"");if(!String.IsNullOrEmpty(r.Path))Execute("UPDATE managed SET chosen='0' WHERE path=?",r.Path);}Execute("COMMIT");}catch{Execute("ROLLBACK");throw;}}}
   public void RestorePrograms(IEnumerable<AppRow> rows){lock(gate){Execute("BEGIN IMMEDIATE");try{foreach(var r in rows)Execute("DELETE FROM hidden_programs WHERE key=?",ProgramKey(r));Execute("COMMIT");}catch{Execute("ROLLBACK");throw;}}}
   public void AllowProgram(AppRow row){lock(gate){Execute("BEGIN IMMEDIATE");try{Execute("DELETE FROM hidden_programs WHERE key=? OR key=?",ProgramKey(row),NameKey(row.ProcessName));Execute("COMMIT");}catch{Execute("ROLLBACK");throw;}}}
-  public long Batch(List<AppRow> rows) {lock(gate){Execute("BEGIN IMMEDIATE");try{Execute("INSERT INTO batches(created) VALUES(?)",DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));long id=sqlite3_last_insert_rowid(db);foreach(var r in rows)Execute("INSERT INTO items(batch,name,path,args,admin,status) VALUES(?,?,?,?,?,?)",id.ToString(),r.Name,r.Path,r.Args,r.Admin?"1":"0","prepared");Execute("COMMIT");return id;}catch{Execute("ROLLBACK");throw;}}}
-  public void Prune(){Execute("DELETE FROM batches WHERE id NOT IN (SELECT id FROM batches ORDER BY id DESC LIMIT 20) AND NOT EXISTS(SELECT 1 FROM items WHERE items.batch=batches.id AND status IN ('closed','launchfailed','prepared','launching','uncertain'))");}
+  public long Batch(List<AppRow> rows) {return Batch(rows,true);}
+  public long Batch(List<AppRow> rows,bool closeHistory) {lock(gate){Execute("BEGIN IMMEDIATE");try{
+   Execute("INSERT INTO batches(created) VALUES(?)",DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));long id=sqlite3_last_insert_rowid(db);
+   foreach(var r in rows)Execute("INSERT INTO items(batch,name,path,args,admin,status,chosen) VALUES(?,?,?,?,?,?,?)",id.ToString(),r.Name,r.Path,r.Args,r.Admin?"1":"0","prepared",r.Selected?"1":"0");
+   if(closeHistory)InsertSet("history_close",DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),rows);
+   PruneCore();Execute("COMMIT");return id;
+  }catch{Execute("ROLLBACK");throw;}}}
+  public void Prune(){lock(gate){Execute("BEGIN IMMEDIATE");try{PruneCore();Execute("COMMIT");}catch{Execute("ROLLBACK");throw;}}}
   public void Dispose(){lock(gate){if(db!=IntPtr.Zero){sqlite3_close(db);db=IntPtr.Zero;}}}
  }
 }
