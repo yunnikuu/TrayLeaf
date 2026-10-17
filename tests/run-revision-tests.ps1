@@ -1,4 +1,4 @@
-﻿param([string]$WorkPath)
+param([string]$WorkPath)
 $ErrorActionPreference='Stop'
 $project=Split-Path $PSScriptRoot
 if(!$WorkPath){$WorkPath=Join-Path $env:TEMP ('TrayLeaf-revision-'+[Guid]::NewGuid().ToString('N'))}
@@ -18,6 +18,6 @@ $flags+=@(Get-ChildItem -LiteralPath (Join-Path $project 'src') -Filter '*.cs' |
 $flags+=Join-Path $PSScriptRoot 'RevisionTests.cs'
 & $csc @flags
 if($LASTEXITCODE){throw 'Revision test compilation failed'}
-if(Test-Path -LiteralPath (Join-Path $project 'TrayLeaf.exe.config')){Copy-Item -LiteralPath (Join-Path $project 'TrayLeaf.exe.config') -Destination (Join-Path $WorkPath 'RevisionTests.exe.config')}
+if(Test-Path -LiteralPath (Join-Path $project 'TrayLeaf.config')){Copy-Item -LiteralPath (Join-Path $project 'TrayLeaf.config') -Destination (Join-Path $WorkPath 'TrayLeaf.config')}
 & (Join-Path $WorkPath 'RevisionTests.exe') $WorkPath
 if($LASTEXITCODE){throw ('Revision tests failed: '+$LASTEXITCODE)}

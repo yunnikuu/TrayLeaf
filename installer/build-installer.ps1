@@ -1,4 +1,4 @@
-﻿param([string]$WixBin=$env:WIX_BIN,[string]$OutputDir,[string]$PayloadDir)
+param([string]$WixBin=$env:WIX_BIN,[string]$OutputDir,[string]$PayloadDir)
 $ErrorActionPreference='Stop'
 $root=Split-Path $PSScriptRoot
 if(!$WixBin){throw '请安装/解压 WiX Toolset v3.14.1，并通过 -WixBin 指定 candle.exe 与 light.exe 所在目录。'}
@@ -11,12 +11,12 @@ if(!$PayloadDir){
  $PayloadDir=Join-Path $build 'payload'
  [IO.Directory]::CreateDirectory($PayloadDir) | Out-Null
  & (Join-Path $root 'build.ps1') -OutputPath (Join-Path $PayloadDir 'TrayLeaf.exe')
- Copy-Item -LiteralPath (Join-Path $root 'TrayLeaf.exe.config') -Destination $PayloadDir
+ Copy-Item -LiteralPath (Join-Path $root 'TrayLeaf.config') -Destination $PayloadDir
 }
 $PayloadDir=[IO.Path]::GetFullPath($PayloadDir)
 $v=[Diagnostics.FileVersionInfo]::GetVersionInfo((Join-Path $PayloadDir 'TrayLeaf.exe'))
-if($v.FileVersion -ne '0.3.2.0' -or $v.ProductVersion -ne '0.3.2'){throw '安装载荷版本必须为 0.3.2。'}
-$object=Join-Path $build 'TrayLeaf.wixobj';$msi=Join-Path $OutputDir 'TrayLeaf-v0.3.2-Windows-x64-Setup.msi'
+if($v.FileVersion -ne '0.3.5.0' -or $v.ProductVersion -ne '0.3.5'){throw '安装载荷版本必须为 0.3.5。'}
+$object=Join-Path $build 'TrayLeaf.wixobj';$msi=Join-Path $OutputDir 'TrayLeaf-v0.3.5-Windows-x64-Setup.msi'
 Push-Location $PSScriptRoot
 try {
  & (Join-Path $WixBin 'candle.exe') -nologo -arch x64 "-dPayloadDir=$PayloadDir" -out $object 'TrayLeaf.wxs'

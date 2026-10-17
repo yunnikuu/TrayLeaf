@@ -1,4 +1,4 @@
-﻿param([string]$WorkPath)
+param([string]$WorkPath)
 $ErrorActionPreference='Stop'
 $project=Split-Path $PSScriptRoot
 if(!$WorkPath){$WorkPath=Join-Path $env:TEMP ('TrayLeaf-ui-'+[Guid]::NewGuid().ToString('N'))}
@@ -18,6 +18,6 @@ $flags+=@(Get-ChildItem -LiteralPath (Join-Path $project 'src') -Filter '*.cs' |
 $flags+=Join-Path $PSScriptRoot 'UiSmokeTests.cs'
 & $csc @flags
 if($LASTEXITCODE){throw 'UI test compilation failed'}
-if(Test-Path -LiteralPath (Join-Path $project 'TrayLeaf.exe.config')){Copy-Item -LiteralPath (Join-Path $project 'TrayLeaf.exe.config') -Destination (Join-Path $WorkPath 'UiSmokeTests.exe.config')}
+if(Test-Path -LiteralPath (Join-Path $project 'TrayLeaf.config')){Copy-Item -LiteralPath (Join-Path $project 'TrayLeaf.config') -Destination (Join-Path $WorkPath 'TrayLeaf.config')}
 & (Join-Path $WorkPath 'UiSmokeTests.exe') $WorkPath
 if($LASTEXITCODE){throw ('UI tests failed: '+$LASTEXITCODE)}

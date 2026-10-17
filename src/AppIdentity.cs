@@ -4,9 +4,9 @@ using System.Linq;
 using System.Reflection;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-[assembly: System.Reflection.AssemblyVersion("0.3.2.0")]
-[assembly: System.Reflection.AssemblyFileVersion("0.3.2.0")]
-[assembly: System.Reflection.AssemblyInformationalVersion("0.3.2")]
+[assembly: System.Reflection.AssemblyVersion("0.3.5.0")]
+[assembly: System.Reflection.AssemblyFileVersion("0.3.5.0")]
+[assembly: System.Reflection.AssemblyInformationalVersion("0.3.5")]
 namespace TrayLeaf {
  // Decode once; OnLoad and Freeze release streams and share small immutable images.
  internal static class AppIdentity {

@@ -1,4 +1,4 @@
-﻿param([string]$OutputDir,[string]$PayloadDir,[string]$WixBin=$env:WIX_BIN)
+param([string]$OutputDir,[string]$PayloadDir,[string]$WixBin=$env:WIX_BIN)
 $ErrorActionPreference='Stop'
 $root=$PSScriptRoot
 if(!$OutputDir){$OutputDir=Join-Path $root 'release'}
@@ -11,7 +11,7 @@ try {
   & (Join-Path $root 'build.ps1') -OutputPath (Join-Path $stage 'TrayLeaf.exe')
  }else{
   $PayloadDir=[IO.Path]::GetFullPath($PayloadDir)
-  foreach($name in @('TrayLeaf.exe','TrayLeaf.exe.config')){
+  foreach($name in @('TrayLeaf.exe','TrayLeaf.config')){
    Copy-Item -LiteralPath (Join-Path $PayloadDir $name) -Destination (Join-Path $stage $name)
   }
  }
@@ -20,7 +20,7 @@ try {
  $v=$version.ProductVersion
  if($v -notmatch '^\d+\.\d+\.\d+$'){throw "Invalid product version: $v"}
  $folder='TrayLeaf-v'+$v+'-Windows-x64'
- $files=@('TrayLeaf.exe','TrayLeaf.exe.config','WiX-LICENSE.txt')
+ $files=@('TrayLeaf.exe','TrayLeaf.config','WiX-LICENSE.txt')
  Add-Type -AssemblyName System.IO.Compression
  Add-Type -AssemblyName System.IO.Compression.FileSystem
  $temporaryZip=Join-Path $stage 'package.zip'

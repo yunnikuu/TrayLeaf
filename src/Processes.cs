@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -23,6 +23,7 @@ namespace TrayLeaf {
   public string Args {get{return args;}set{args=value??"";Change("Args");}}
   public string State {get{return state;}set{state=value;Change("State");}}
   public string Name {get;set;} public string ProcessName {get;set;}public string Path {get;set;} public string Source {get;set;}
+  public int HistoryPriority {get;set;} internal string HistoryOriginalSource;
   public bool Risk {get;set;}public string RiskReason {get;set;} public bool ArgsKnown {get;set;}public double MemoryMB {get;set;}
   public string Memory {get{return MemoryMB>0?MemoryMB.ToString("N0")+" MB":"—";}}
   public string PidText {get{return String.Join(", ",Processes.Select(x=>x.Pid.ToString()).ToArray());}}

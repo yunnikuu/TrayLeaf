@@ -1,4 +1,4 @@
-﻿param([string]$WorkPath,[string]$Project,[string]$TestSource,[string]$Entry="Version032FeatureTests")
+param([string]$WorkPath,[string]$Project,[string]$TestSource,[string]$Entry="Version032FeatureTests")
 $ErrorActionPreference='Stop'
 if(!$Project){$Project=Split-Path $PSScriptRoot}
 if(!$TestSource){$TestSource=Join-Path $PSScriptRoot ($Entry+'.cs')}
@@ -21,7 +21,7 @@ $flags+=@(Get-ChildItem -LiteralPath (Join-Path $project 'src') -Filter '*.cs' |
 $flags+=$TestSource
 & $csc @flags
 if($LASTEXITCODE){throw 'UI test compilation failed'}
-if(Test-Path -LiteralPath (Join-Path $project 'TrayLeaf.exe.config')){Copy-Item -LiteralPath (Join-Path $project 'TrayLeaf.exe.config') -Destination (Join-Path $WorkPath 'Version032Tests.exe.config')}
+if(Test-Path -LiteralPath (Join-Path $project 'TrayLeaf.config')){Copy-Item -LiteralPath (Join-Path $project 'TrayLeaf.config') -Destination (Join-Path $WorkPath 'TrayLeaf.config')}
 & (Join-Path $WorkPath 'Version032Tests.exe') $WorkPath
 if($LASTEXITCODE){throw ('UI tests failed: '+$LASTEXITCODE)}
 

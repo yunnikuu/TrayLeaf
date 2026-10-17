@@ -1,4 +1,4 @@
-﻿param([Parameter(Mandatory=$true)][string]$ProjectRoot,[Parameter(Mandatory=$true)][string]$WorkPath,[Parameter(Mandatory=$true)][string]$ExpectedIco,[Parameter(Mandatory=$true)][string]$ExpectedPng)
+param([Parameter(Mandatory=$true)][string]$ProjectRoot,[Parameter(Mandatory=$true)][string]$WorkPath,[Parameter(Mandatory=$true)][string]$ExpectedIco,[Parameter(Mandatory=$true)][string]$ExpectedPng)
 $ErrorActionPreference='Stop'
 Import-Module Microsoft.PowerShell.Utility
 $ProjectRoot=[IO.Path]::GetFullPath($ProjectRoot)
@@ -14,6 +14,5 @@ foreach($dll in @('System','System.Core','System.Drawing','System.Windows.Forms'
 $flags+=Join-Path $PSScriptRoot 'IconTests.cs'
 & $csc @flags
 if($LASTEXITCODE){throw 'Icon test compilation failed'}
-Copy-Item -LiteralPath ($exe+'.config') -Destination (Join-Path $WorkPath 'IconTests.exe.config') -Force
 & (Join-Path $WorkPath 'IconTests.exe') $ExpectedIco $ExpectedPng $WorkPath
 exit $LASTEXITCODE

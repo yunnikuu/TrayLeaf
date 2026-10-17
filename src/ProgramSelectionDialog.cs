@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
@@ -23,7 +23,7 @@ namespace TrayLeaf {
    var panel=(Grid)XamlReader.Parse(xaml);Content=new Border{Background=Background,Padding=new Thickness(24),Child=panel};NameScope.SetNameScope(this,new NameScope());
    foreach(string name in new[]{"Programs","Filter","ChooseVisible","ChooseNone","Confirm","Cancel","Count"})RegisterName(name,panel.FindName(name));
    ((TextBlock)panel.FindName("Heading")).Text=restore?"让程序重新显示":"整理你的程序列表";
-   ((TextBlock)panel.FindName("Description")).Text=restore?"勾选后恢复到识别列表，不会启动程序，也不会自动加入关闭选择。":"选择不再显示的程序，不会关闭或卸载应用。刷新与重启后保留，可在设置中恢复显示。";
+   ((TextBlock)panel.FindName("Description")).Text=restore?"勾选后恢复到识别列表，不会启动程序，也不会自动加入关闭选择":"选择不再显示的程序，不会关闭或卸载应用；刷新与重启后保留，可在设置中恢复显示";
    grid=(DataGrid)panel.FindName("Programs");search=(TextBox)panel.FindName("Filter");count=(TextBlock)panel.FindName("Count");confirm=(Button)panel.FindName("Confirm");confirm.Content=restore?"恢复显示":"移除所选";grid.ItemsSource=choices;
    Action update=delegate{count.Text="已选 "+Chosen.Count+" / "+choices.Count+" 个程序";confirm.IsEnabled=Chosen.Count>0;};
    foreach(var r in choices)r.PropertyChanged+=delegate{update();};

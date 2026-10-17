@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.ObjectModel;
 using System.Collections.Generic;
 using System.Linq;
@@ -18,7 +18,7 @@ namespace TrayLeaf {
    Background=new SolidColorBrush(Color.FromRgb(244,247,251));Foreground=owner.Foreground;FontFamily=owner.FontFamily;FontSize=owner.FontSize;Resources=owner.Resources;UseLayoutRounding=true;SnapsToDevicePixels=true;
    entries=new ObservableCollection<AppRow>(source.Select(ProgramPresentation.Copy));foreach(var r in entries)ProgramPresentation.LoadIcon(r);
    var root=new Grid{Margin=new Thickness(24)};var surface=new Grid{Background=Background};surface.Children.Add(root);Content=surface;foreach(var h in new[]{GridLength.Auto,GridLength.Auto,new GridLength(1,GridUnitType.Star),GridLength.Auto})root.RowDefinitions.Add(new RowDefinition{Height=h});
-   var heading=new StackPanel();root.Children.Add(heading);heading.Children.Add(new TextBlock{Text=Title,FontSize=23,FontWeight=FontWeights.SemiBold});heading.Children.Add(new TextBlock{Text=kind=="close"?"勾选要关闭的程序，并保存它们下次启动时使用的参数与权限。":"勾选要启动的程序，分别设置启动参数与管理员权限。",Foreground=Brushes.SlateGray,Margin=new Thickness(0,8,0,14),TextWrapping=TextWrapping.Wrap});
+   var heading=new StackPanel();root.Children.Add(heading);heading.Children.Add(new TextBlock{Text=Title,FontSize=23,FontWeight=FontWeights.SemiBold});heading.Children.Add(new TextBlock{Text=kind=="close"?"勾选要关闭的程序，并保存它们下次启动时使用的参数与权限":"勾选要启动的程序，分别设置启动参数与管理员权限",Foreground=Brushes.SlateGray,Margin=new Thickness(0,8,0,14),TextWrapping=TextWrapping.Wrap});
    var tools=new DockPanel{Margin=new Thickness(0,0,0,14)};Grid.SetRow(tools,1);root.Children.Add(tools);
    var buttons=new StackPanel{Orientation=Orientation.Horizontal};DockPanel.SetDock(buttons,Dock.Right);tools.Children.Add(buttons);
    Action<string,Action> button=(label,action)=>{var b=new Button{Content=label,Padding=new Thickness(10,7,10,7)};b.Click+=delegate{action();};buttons.Children.Add(b);};
@@ -36,7 +36,7 @@ namespace TrayLeaf {
    var actions=new StackPanel{Orientation=Orientation.Horizontal};DockPanel.SetDock(actions,Dock.Right);footer.Children.Add(actions);
    var cancel=new Button{Content="取消",IsCancel=true};actions.Children.Add(cancel);
    var commit=new Button{Content="保存配置",Style=(Style)owner.FindResource("Primary"),Margin=new Thickness(0)};actions.Children.Add(commit);
-   feedback=new TextBlock{Text="双击启动参数进行编辑 · 配置只保存设置，应用后由你执行关闭或开启。",Foreground=Brushes.SlateGray,TextWrapping=TextWrapping.Wrap,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(0,0,14,0)};footer.Children.Add(feedback);
+   feedback=new TextBlock{Text="双击启动参数进行编辑 · 配置只保存设置，应用后由你执行关闭或开启",Foreground=Brushes.SlateGray,TextWrapping=TextWrapping.Wrap,VerticalAlignment=VerticalAlignment.Center,Margin=new Thickness(0,0,14,0)};footer.Children.Add(feedback);
    commit.Click+=delegate{try{table.CommitEdit(DataGridEditingUnit.Cell,true);table.CommitEdit(DataGridEditingUnit.Row,true);save(ProfileName,Rows);DialogResult=true;}catch(Exception ex){feedback.Text=ex.Message;}};
   }
  }
