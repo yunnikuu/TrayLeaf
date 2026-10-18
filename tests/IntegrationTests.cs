@@ -47,7 +47,7 @@ class IntegrationTests {
    string content=File.ReadAllText(log);int launchedId=Int32.Parse(content.Split('\n')[0]);var launched=Process.GetProcessById(launchedId);children.Add(launched);
    Check("restore-exact-arguments",content.Contains("--marker \"hello 世界\""));
    row.ItemStatus="closed";Check("running-path-deduplication",ops.Restore(row)=="已在运行 / 跳过"&&row.ItemStatus=="skipped");Stop(launched);
-   row.ItemStatus="closed";row.Path=Path.Combine(root,"nonexistent.exe");Check("launch-failure-retryable",ops.Restore(row).StartsWith("启动失败")&&row.CanRestore);
+   row.ItemStatus="closed";row.Path=Path.Combine(root,"nonexistent.exe");ops.RefreshStatuses(new[]{row},ProcessService.RunningPaths());Check("launch-failure-retryable",ops.Restore(row).StartsWith("启动失败")&&row.CanRestore);
    Throws("invalid-prepare-refused",()=>ops.Prepare(new List<AppRow>{row}));
    p=Start("--ignore-close");row=Row(p,"");ops.Prepare(new List<AppRow>{row});Check("force-close-only-owned-fixture",ops.Close(row,x=>true)=="已关闭"&&p.WaitForExit(2000));Stop(p);
    p=Start("--ignore-close");row=Row(p,"");ops.Prepare(new List<AppRow>{row});row.Risk=true;Check("decline-force-remains-alive",ops.Close(row,x=>false).StartsWith("已取消")&&!p.HasExited&&row.ItemStatus=="cancelled");Stop(p);

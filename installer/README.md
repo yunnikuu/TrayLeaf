@@ -1,4 +1,4 @@
-﻿# 轻羽归栈 v0.8.0 安装器
+﻿# 轻羽归栈 v0.8.2 安装器
 
 使用 WiX v3.14.x candle / light 构建，详见仓库 README。固定 UpgradeCode：{49F5C6BF-41D9-5CF1-8FFA-917E45CCB2DC}，提高版本时须生成新 ProductCode。
 

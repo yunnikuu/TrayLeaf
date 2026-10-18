@@ -15,8 +15,8 @@ if(!$PayloadDir){
 }
 $PayloadDir=[IO.Path]::GetFullPath($PayloadDir)
 $v=[Diagnostics.FileVersionInfo]::GetVersionInfo((Join-Path $PayloadDir 'TrayLeaf.exe'))
-if($v.FileVersion -ne '0.8.0.0' -or $v.ProductVersion -ne '0.8.0'){throw '安装载荷版本必须为 0.8.0。'}
-$object=Join-Path $build 'TrayLeaf.wixobj';$msi=Join-Path $OutputDir 'TrayLeaf-v0.8.0-Windows-x64-Setup.msi'
+if($v.FileVersion -ne '0.8.2.0' -or $v.ProductVersion -ne '0.8.2'){throw '安装载荷版本必须为 0.8.2。'}
+$object=Join-Path $build 'TrayLeaf.wixobj';$msi=Join-Path $OutputDir 'TrayLeaf-v0.8.2-Windows-x64-Setup.msi'
 Push-Location $PSScriptRoot
 try {
  & (Join-Path $WixBin 'candle.exe') -nologo -arch x64 "-dPayloadDir=$PayloadDir" -out $object 'TrayLeaf.wxs'

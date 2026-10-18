@@ -36,6 +36,8 @@ namespace TrayLeaf {
   [DllImport("shell32.dll")]static extern int SHGetKnownFolderPath(ref Guid id,uint flags,IntPtr token,out IntPtr path);
   public static uint Pid(IntPtr h){uint id;GetWindowThreadProcessId(h,out id);return id;}
   public static string Class(IntPtr h){var b=new StringBuilder(256);GetClassName(h,b,b.Capacity);return b.ToString();}
+  [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)]static extern bool QueryFullProcessImageName(IntPtr process,int flags,System.Text.StringBuilder path,ref int size);
+  public static string ProcessPath(int pid){IntPtr process=OpenProcess(0x1000,false,(uint)pid);if(process==IntPtr.Zero)return null;try{int size=32768;var path=new System.Text.StringBuilder(size);return QueryFullProcessImageName(process,0,path,ref size)?path.ToString():null;}finally{CloseHandle(process);}}
   public static bool Critical(uint pid){IntPtr h=OpenProcess(0x1000,false,pid);if(h==IntPtr.Zero)return false;try{bool c;return IsProcessCritical(h,out c)&&c;}catch(EntryPointNotFoundException){return false;}finally{CloseHandle(h);}}
   public static bool IconRect(IntPtr hwnd,uint uid,Guid guid){ICONID n=new ICONID{cbSize=(uint)Marshal.SizeOf(typeof(ICONID)),hWnd=hwnd,uID=uid,guidItem=guid};RECT r;return Shell_NotifyIconGetRect(ref n,out r)==0&&r.Right>r.Left&&r.Bottom>r.Top;}
   public static string ExpandKnownFolder(string path){if(String.IsNullOrEmpty(path))return "";path=Environment.ExpandEnvironmentVariables(path);if(path.StartsWith("{")){int end=path.IndexOf('}');Guid guid;if(end>0&&Guid.TryParse(path.Substring(0,end+1),out guid)){IntPtr p;if(SHGetKnownFolderPath(ref guid,0,IntPtr.Zero,out p)==0){try{return Marshal.PtrToStringUni(p)+path.Substring(end+1);}finally{Marshal.FreeCoTaskMem(p);}}}}return path;}

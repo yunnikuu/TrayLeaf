@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -9,7 +9,7 @@ namespace TrayLeaf {
   bool loadingCollections;
   readonly HashSet<string> closeHistoryPaths=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
   void ApplyHistoryPins(){foreach(var row in current){if(closeHistoryPaths.Contains(row.Path??"")){if(row.HistoryOriginalSource==null)row.HistoryOriginalSource=row.Source;row.Source="历史记录";row.HistoryPriority=1;}else{if(row.HistoryOriginalSource!=null)row.Source=row.HistoryOriginalSource;row.HistoryOriginalSource=null;row.HistoryPriority=0;}}}
-  void CompleteClose(long batch,int done,int total){db.Prune();ReloadHistory(batch);ReloadCollections();Status(CloseSummary(done,total));}
+  void CompleteClose(long batch,int done,int total){db.Prune();ReloadHistory(batch);ReloadCollections();var failed=ops.History(batch).Where(r=>r.ItemStatus!="closed").Select(r=>r.Name).ToList();Status(CloseSummary(done,total)+(done<total&&failed.Count>0?"；未关闭："+String.Join("、",failed):""));}
   static string CloseSummary(int done,int total){return done==total?"共计 "+total+" 个程序，已全部关闭":"共计 "+total+" 个程序，已关闭 "+done+" 个，未关闭 "+(total-done)+" 个；请查看状态";}
   void SetupCollections(){
    HistoryPresentation.Configure(Get<DataGrid>("ProcessGrid"));

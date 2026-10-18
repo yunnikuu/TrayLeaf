@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -31,7 +31,9 @@ namespace TrayLeaf {
   public string RiskText {get{return Risk?"系统 / 服务":"普通应用";}}
   public ImageSource Icon {get;set;}
   public List<Identity> Processes=new List<Identity>();public long ItemId;string itemStatus;public string ItemStatus {get{return itemStatus;}set{itemStatus=value;Change("CanRestore");}}
-  public bool CanRestore {get{return ItemStatus=="closed"||ItemStatus=="launchfailed"||ItemStatus=="configured";}}
+  bool? running;
+  public bool? Running {get{return running;}set{running=value;Change("Running");Change("CanRestore");}}
+  public bool CanRestore {get{if(Running==true||ItemStatus=="launching"||ItemStatus=="launched")return false;return Running==false||ItemStatus=="closed"||ItemStatus=="launchfailed"||ItemStatus=="configured";}}
  }
  public class ProcInfo {public int Id,Parent;public string Name,Path,Command;public long Started;public double Memory;public bool Service,Critical;}
  public class ScanResult {public List<AppRow> Rows=new List<AppRow>();public string Note="";public int Candidates;}
@@ -90,7 +92,8 @@ namespace TrayLeaf {
   public static void Force(AppRow row) {
    foreach(var id in row.Processes){if(id.Pid<=4||id.Pid==Process.GetCurrentProcess().Id)throw new InvalidOperationException("该系统保留进程或工具自身不能通过此工具结束");try{using(var p=Process.GetProcessById(id.Pid)){if(Verify(p,id)){p.Kill();if(!p.WaitForExit(4000))throw new IOException("结束请求已发送，但进程仍未退出");}}}catch(ArgumentException){}}
   }
-  public static bool IsRunning(string path){foreach(var p in Process.GetProcesses())using(p){try{if(!p.HasExited&&String.Equals(p.MainModule.FileName,path,StringComparison.OrdinalIgnoreCase))return true;}catch{}}return false;}
+  public static HashSet<string> RunningPaths(){var paths=new HashSet<string>(StringComparer.OrdinalIgnoreCase);foreach(var p in Process.GetProcesses())using(p){try{if(p.HasExited)continue;string path=Native.ProcessPath(p.Id);if(!String.IsNullOrEmpty(path))paths.Add(path);}catch(InvalidOperationException){}catch(Win32Exception){}}return paths;}
+  public static bool IsRunning(string path){return !String.IsNullOrWhiteSpace(path)&&RunningPaths().Contains(path);}
   public static void Launch(string path,string args,bool admin) {
    if(!System.IO.Path.IsPathRooted(path)||!File.Exists(path))throw new FileNotFoundException("程序路径无效或文件不存在",path);
    if(args!=null&&(args.IndexOf('\0')>=0||args.Length>30000))throw new ArgumentException("启动参数无效或过长");
