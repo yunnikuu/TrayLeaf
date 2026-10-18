@@ -40,6 +40,9 @@ namespace TrayLeaf {
   "<Settings><MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy><DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries><StopIfGoingOnBatteries>false</StopIfGoingOnBatteries><AllowStartOnDemand>true</AllowStartOnDemand><Enabled>true</Enabled><ExecutionTimeLimit>PT0S</ExecutionTimeLimit></Settings>"+
   "<Actions Context=\"Author\"><Exec><Command>"+escape(exe)+"</Command><Arguments>--startup</Arguments><WorkingDirectory>"+escape(Path.GetDirectoryName(exe))+"</WorkingDirectory></Exec></Actions></Task>";}
  static void RegisterTask(){object service=null,folder=null,registered=null;try{service=Activator.CreateInstance(Type.GetTypeFromProgID("Schedule.Service"));dynamic scheduler=service;scheduler.Connect();folder=scheduler.GetFolder("\\");string sid=WindowsIdentity.GetCurrent().User.Value;dynamic f=folder;registered=f.RegisterTask(TaskName,TaskXml(Exe,sid),6,sid,null,3,null);}finally{Release(registered);Release(folder);Release(service);}}
- static void RemoveTask(){object service=null,folder=null;try{service=Activator.CreateInstance(Type.GetTypeFromProgID("Schedule.Service"));dynamic s=service;s.Connect();folder=s.GetFolder("\\");dynamic f=folder;try{object existing=f.GetTask(TaskName);Release(existing);}catch(COMException ex){if((uint)ex.HResult==0x80070002)return;throw;}f.DeleteTask(TaskName,0);}finally{Release(folder);Release(service);}}
+ // COM maps ERROR_FILE_NOT_FOUND to FileNotFoundException on some Windows versions.
+ // Delete directly so an already-absent task (including a concurrent removal) is a successful no-op.
+ internal static void RemoveTaskIfPresent(Action deleteTask){try{deleteTask();}catch(Exception ex){if((uint)ex.HResult!=0x80070002)throw;}}
+ static void RemoveTask(){object service=null,folder=null;try{service=Activator.CreateInstance(Type.GetTypeFromProgID("Schedule.Service"));dynamic s=service;s.Connect();folder=s.GetFolder("\\");dynamic f=folder;RemoveTaskIfPresent(()=>{f.DeleteTask(TaskName,0);});}finally{Release(folder);Release(service);}}
  }
 }
