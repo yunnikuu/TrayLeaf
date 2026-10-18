@@ -1,7 +1,9 @@
-param([Parameter(Mandatory=$true)][string]$ProjectRoot,[Parameter(Mandatory=$true)][string]$WorkPath,[Parameter(Mandatory=$true)][string]$ExpectedIco,[Parameter(Mandatory=$true)][string]$ExpectedPng)
+﻿param([Parameter(Mandatory=$true)][string]$ProjectRoot,[Parameter(Mandatory=$true)][string]$WorkPath,[Parameter(Mandatory=$true)][string]$ExpectedIco,[Parameter(Mandatory=$true)][string]$ExpectedPng)
 $ErrorActionPreference='Stop'
 Import-Module Microsoft.PowerShell.Utility
 $ProjectRoot=[IO.Path]::GetFullPath($ProjectRoot)
+$ExpectedIco=[IO.Path]::GetFullPath($ExpectedIco)
+$ExpectedPng=[IO.Path]::GetFullPath($ExpectedPng)
 $WorkPath=[IO.Path]::GetFullPath($WorkPath)
 [IO.Directory]::CreateDirectory($WorkPath)|Out-Null
 $exe=Join-Path $WorkPath 'TrayLeaf.exe'

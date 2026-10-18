@@ -1,6 +1,7 @@
-param([string]$OutputDir,[string]$PayloadDir,[string]$WixBin=$env:WIX_BIN)
+﻿param([string]$OutputDir,[string]$PayloadDir,[string]$WixBin=$env:WIX_BIN)
 $ErrorActionPreference='Stop'
 $root=$PSScriptRoot
+if(!$WixBin -or !(Test-Path -LiteralPath (Join-Path $WixBin 'candle.exe')) -or !(Test-Path -LiteralPath (Join-Path $WixBin 'light.exe'))){throw '发布必须同时生成 ZIP 和 MSI，请通过 -WixBin 指定 WiX 工具目录'}
 if(!$OutputDir){$OutputDir=Join-Path $root 'release'}
 $OutputDir=[IO.Path]::GetFullPath($OutputDir)
 [IO.Directory]::CreateDirectory($OutputDir) | Out-Null
@@ -30,14 +31,6 @@ try {
    [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip,(Join-Path $stage $name),($folder+'/'+$name),[IO.Compression.CompressionLevel]::Optimal) | Out-Null
   }
  }finally{$zip.Dispose()}
- $destination=Join-Path $OutputDir $folder
- [IO.Directory]::CreateDirectory($destination) | Out-Null
- foreach($name in $files){Copy-Item -LiteralPath (Join-Path $stage $name) -Destination (Join-Path $destination $name) -Force}
- # Remove only the retired documentation files left by earlier packages.
- foreach($name in @('使用说明.txt','更新说明.txt','使用教程.txt','更新日志.txt')){
-  $retired=Join-Path $destination $name
-  if(Test-Path -LiteralPath $retired -PathType Leaf){Remove-Item -LiteralPath $retired -Force}
- }
  $archive=Join-Path $OutputDir ($folder+'.zip')
  Copy-Item -LiteralPath $temporaryZip -Destination $archive -Force
  $sha=[Security.Cryptography.SHA256]::Create()

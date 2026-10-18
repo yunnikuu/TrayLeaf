@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
@@ -20,7 +20,7 @@ namespace TrayLeaf {
    copy.Click+=delegate{try{Clipboard.SetText(row.Path);report("已复制程序路径");}catch(Exception ex){report("复制失败："+ex.Message);}};
    group.Items.Add(open);group.Items.Add(copy);return menu;
   }
-  internal static void AttachMenus(DataGrid grid,Action<string> report){grid.LoadingRow+=delegate(object sender,DataGridRowEventArgs e){var row=e.Row.Item as AppRow;if(row!=null)e.Row.ContextMenu=PathMenu(row,report);};}
+  internal static void AttachMenus(DataGrid grid,Action<string> report){grid.LoadingRow+=delegate(object sender,DataGridRowEventArgs e){var row=e.Row.Item as AppRow;if(row!=null){var menu=PathMenu(row,report);var owner=Window.GetWindow(grid);if(owner!=null)menu.Resources=owner.Resources;e.Row.ContextMenu=menu;}};}
   internal static AppRow Copy(AppRow r){return new AppRow{Name=r.Name,ProcessName=r.ProcessName,Path=r.Path,Args=r.Args,Admin=r.Admin,Selected=r.Selected,ArgsKnown=true,ItemStatus=r.ItemStatus,State=r.State,Icon=r.Icon};}
  }
 }

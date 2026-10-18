@@ -1,10 +1,11 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 namespace TrayLeaf {
  public static class Native {
+  [DllImport("user32.dll")] internal static extern bool SetForegroundWindow(IntPtr hwnd);
   public delegate bool EnumProc(IntPtr h,IntPtr p);
   [StructLayout(LayoutKind.Sequential)]public struct POINT {public int X,Y;}
   [StructLayout(LayoutKind.Sequential)]public struct RECT {public int Left,Top,Right,Bottom;}

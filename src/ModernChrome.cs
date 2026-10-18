@@ -1,0 +1,26 @@
+﻿using System;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Interop;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Shell;
+using System.Runtime.InteropServices;
+namespace TrayLeaf {
+ internal static class Chrome {
+ [DllImport("gdi32.dll")]static extern IntPtr CreateRoundRectRgn(int a,int b,int c,int d,int e,int f);
+ [DllImport("gdi32.dll")]static extern bool DeleteObject(IntPtr o);
+ [DllImport("user32.dll")]static extern int SetWindowRgn(IntPtr h,IntPtr r,bool redraw);
+ internal static double Radius=16;
+ internal static void Round(Window w,double radius){var h=new WindowInteropHelper(w).Handle;if(h==IntPtr.Zero)return;var scale=VisualTreeHelper.GetDpi(w);if(w.WindowState==WindowState.Maximized||radius<1){SetWindowRgn(h,IntPtr.Zero,true);return;}var r=CreateRoundRectRgn(0,0,(int)(w.ActualWidth*scale.DpiScaleX)+1,(int)(w.ActualHeight*scale.DpiScaleY)+1,(int)(radius*2*scale.DpiScaleX),(int)(radius*2*scale.DpiScaleY));if(SetWindowRgn(h,r,true)==0)DeleteObject(r);}
+ internal static void Dialog(Window w,bool resize){Decorate(w,resize);if(!resize)return;Wrap(w);}
+ internal static void Wrap(Window w){var content=w.Content as UIElement;if(content==null)return;var grid=new Grid();grid.RowDefinitions.Add(new RowDefinition{Height=new GridLength(42)});grid.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});var title=new Grid{Background=Brushes.Transparent,Margin=new Thickness(18,0,8,0)};title.Children.Add(new TextBlock{Text=w.Title,VerticalAlignment=VerticalAlignment.Center,FontSize=12});var close=new Button{Content="×",HorizontalAlignment=HorizontalAlignment.Right,Width=32,Padding=new Thickness(0),Margin=new Thickness(0,5,0,5)};close.Click+=delegate{w.Close();};title.Children.Add(close);title.MouseLeftButtonDown+=delegate{try{w.DragMove();}catch{}};w.Content=null;grid.Children.Add(title);Grid.SetRow(content,1);grid.Children.Add(content);w.Content=grid;}
+ internal static void Decorate(Window w,bool resize){w.WindowStyle=WindowStyle.None;w.SetResourceReference(Control.BackgroundProperty,"Canvas");w.SetResourceReference(Control.ForegroundProperty,"Text");TextOptions.SetTextFormattingMode(w,TextFormattingMode.Display);TextOptions.SetTextRenderingMode(w,TextRenderingMode.ClearType);WindowChrome.SetWindowChrome(w,new WindowChrome{CaptionHeight=0,ResizeBorderThickness=new Thickness(resize?6:0),GlassFrameThickness=new Thickness(0),CornerRadius=new CornerRadius(Radius)});w.SourceInitialized+=delegate{Round(w,Radius);};w.SizeChanged+=delegate{Round(w,Radius);};w.StateChanged+=delegate{Round(w,Radius);};if(resize)return;var content=w.Content as UIElement;if(content==null)return;var root=new Grid();root.RowDefinitions.Add(new RowDefinition{Height=new GridLength(42)});root.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});var title=new Grid{Background=Brushes.Transparent,Margin=new Thickness(18,0,8,0)};title.Children.Add(new TextBlock{Text=w.Title,VerticalAlignment=VerticalAlignment.Center,FontSize=12});var close=new Button{Content="×",HorizontalAlignment=HorizontalAlignment.Right,Width=32,Padding=new Thickness(0),Margin=new Thickness(0,5,0,5)};close.Click+=delegate{w.Close();};title.Children.Add(close);title.MouseLeftButtonDown+=delegate{try{w.DragMove();}catch{}};w.Content=null;root.Children.Add(title);Grid.SetRow(content,1);root.Children.Add(content);w.Content=root;}
+ }
+ internal static class StartupNotice {
+ internal static void Show(string text,string title){var app=Application.Current??new Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};Window shell;using(var stream=typeof(Entry).Assembly.GetManifestResourceStream("TrayLeaf.MainWindow.xaml"))shell=(Window)System.Windows.Markup.XamlReader.Load(stream);ThemeManager.Apply(shell,"2",0);ModernDialog.Confirm(shell,text,title,false);}
+ }
+ internal static class ModernDialog {
+ internal static bool Confirm(Window owner,string text,string title,bool confirmation){var d=new Window{Owner=owner.IsLoaded?owner:null,Title=title,Width=510,SizeToContent=SizeToContent.Height,MinHeight=200,MaxHeight=Math.Max(300,SystemParameters.WorkArea.Height-60),ResizeMode=ResizeMode.NoResize,WindowStartupLocation=WindowStartupLocation.CenterOwner,ShowInTaskbar=false,FontFamily=owner.FontFamily,FontSize=13,Resources=owner.Resources};var p=new StackPanel{Margin=new Thickness(24)};p.Children.Add(new TextBlock{Text=title,FontSize=22,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,0,0,18)});var scroll=new ScrollViewer{MaxHeight=Math.Max(150,SystemParameters.WorkArea.Height-300),VerticalScrollBarVisibility=ScrollBarVisibility.Auto};scroll.Content=new TextBlock{Text=text,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,22)};p.Children.Add(scroll);var buttons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};p.Children.Add(buttons);if(confirmation){var no=new Button{Content="取消",IsCancel=true,MinWidth=84};buttons.Children.Add(no);}var yes=new Button{Content=confirmation?"确认继续":"知道了",Style=(Style)owner.FindResource("Primary"),MinWidth=96,IsDefault=!confirmation};buttons.Children.Add(yes);yes.Click+=delegate{d.DialogResult=true;};d.Content=p;Chrome.Decorate(d,false);return d.ShowDialog()==true;}
+ }
+}

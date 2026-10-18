@@ -1,15 +1,17 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-  <Product Id="{A5D82949-EE03-5CBB-B8EC-87F4B45C352E}" Name="托盘管家 TrayLeaf" Language="2052" Version="0.3.5" Manufacturer="TrayLeaf" UpgradeCode="{49F5C6BF-41D9-5CF1-8FFA-917E45CCB2DC}" Codepage="936">
-    <Package Id="*" InstallerVersion="500" Compressed="yes" InstallScope="perUser" Platform="x64" Description="托盘管家 TrayLeaf v0.3.5 安装程序" Comments="Windows 10/11 x64；当前用户安装；程序运行时仍请求管理员权限。" />
+  <Product Id="{5EEEB466-2C00-5CBC-B5F2-B6715C2E1270}" Name="轻羽归栈 TrayLeaf" Language="2052" Version="0.8.0" Manufacturer="TrayLeaf" UpgradeCode="{49F5C6BF-41D9-5CF1-8FFA-917E45CCB2DC}" Codepage="936">
+    <Package Id="*" InstallerVersion="500" Compressed="yes" InstallScope="perUser" Platform="x64" Description="轻羽归栈 TrayLeaf v0.8.0 安装程序" Comments="Windows 10/11 x64；当前用户安装；可在程序设置中切换启动权限。" />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
-    <MajorUpgrade DowngradeErrorMessage="已安装更高版本的 TrayLeaf，请先卸载较新版本。" Schedule="afterInstallInitialize" />
+    <MajorUpgrade DowngradeErrorMessage="已安装更高版本的 TrayLeaf，请先卸载较新版本。" Schedule="afterInstallInitialize" AllowSameVersionUpgrades="yes" />
     <Property Id="ARPPRODUCTICON" Value="TrayLeafIcon" />
     <Property Id="ARPNOMODIFY" Value="1" />
     <SetProperty Id="ARPINSTALLLOCATION" Value="[INSTALLFOLDER]" After="CostFinalize" />
     <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" />
     <Property Id="REBOOT" Value="ReallySuppress" />
-    <Property Id="DESKTOP_SHORTCUT" Value="1" Secure="yes" />
+    <Property Id="DESKTOP_SHORTCUT" Value="1" Secure="yes"><RegistrySearch Id="PreviousDesktopChoice" Root="HKCU" Key="Software\TrayLeaf\Installer" Name="DesktopChoice" Type="raw" Win64="yes" /></Property>
+    <Property Id="STARTMENU_SHORTCUT" Value="1" Secure="yes"><RegistrySearch Id="PreviousMenuChoice" Root="HKCU" Key="Software\TrayLeaf\Installer" Name="MenuChoice" Type="raw" Win64="yes" /></Property>
+    <Property Id="AUTO_START" Secure="yes"><RegistrySearch Id="PreviousStartupChoice" Root="HKCU" Key="Software\TrayLeaf\Preferences" Name="AutoStart" Type="raw" Win64="yes" /></Property>
     <!-- Remember a custom destination during maintenance/uninstall as well as install. -->
     <Property Id="INSTALLFOLDER" Secure="yes">
       <RegistrySearch Id="SavedInstallFolder" Root="HKCU" Key="Software\TrayLeaf\Installer" Name="InstallPath" Type="raw" Win64="yes" />
@@ -33,10 +35,19 @@
               <File Id="ToolLicense" Name="WiX-LICENSE.txt" Source="WiX-LICENSE.txt" />
               <RemoveFile Id="RemoveOldExeConfig" Name="TrayLeaf.exe.config" On="install" />
               <RemoveFile Id="RemoveOldUsage" Name="使用说明.txt" On="install" />
+              <RemoveFile Id="RemoveOldTutorial" Name="使用教程.txt" On="install" />
+              <RemoveFile Id="RemoveOldChangeTxt" Name="更新日志.txt" On="install" />
+              <RemoveFile Id="RemoveOldDesktopName" Name="托盘管家 TrayLeaf.lnk" Directory="DesktopFolder" On="install" />
             <RemoveFile Id="RemoveOldChangelog" Name="更新说明.txt" On="install" />
             <RegistryValue Root="HKCU" Key="Software\TrayLeaf\Installer" Name="InstallPath" Type="string" Value="[INSTALLFOLDER]" KeyPath="yes" />
+              <RegistryValue Root="HKCU" Key="Software\TrayLeaf\Installer" Name="DesktopChoice" Type="string" Value="[DESKTOP_SHORTCUT]" />
+              <RegistryValue Root="HKCU" Key="Software\TrayLeaf\Installer" Name="MenuChoice" Type="string" Value="[STARTMENU_SHORTCUT]" />
               <RemoveFolder Id="RemoveInstallFolder" On="uninstall" />
               <RemoveFolder Id="RemoveEmptyProgramsFolder" Directory="ProgramsFolder" On="uninstall" />
+            </Component>
+            <Component Id="StartupFallback" Guid="{BBE4E3EE-7F03-4709-B107-C988EA12D33E}" Win64="yes">
+              <Condition>AUTO_START = "1"</Condition>
+              <RegistryValue Root="HKCU" Key="Software\Microsoft\Windows\CurrentVersion\Run" Name="TrayLeaf" Type="string" Value="&quot;[INSTALLFOLDER]TrayLeaf.exe&quot; --startup" KeyPath="yes" />
             </Component>
           </Directory>
         </Directory>
@@ -44,7 +55,9 @@
       <Directory Id="ProgramMenuFolder">
         <Directory Id="AppMenuFolder" Name="TrayLeaf">
           <Component Id="StartMenuShortcut" Guid="{36614DEE-7F5A-50E3-860C-8585467DE1EA}" Win64="yes">
-            <Shortcut Id="StartMenuLink" Name="托盘管家 TrayLeaf" Target="[INSTALLFOLDER]TrayLeaf.exe" WorkingDirectory="INSTALLFOLDER" Icon="TrayLeafIcon" Description="游戏前关闭选定后台，结束后按需重新启动" />
+            <Condition>STARTMENU_SHORTCUT = "1"</Condition>
+            <RemoveFile Id="RemoveOldMenuName" Name="托盘管家 TrayLeaf.lnk" On="install" />
+            <Shortcut Id="StartMenuLink" Name="轻羽归栈 TrayLeaf" Target="[INSTALLFOLDER]TrayLeaf.exe" WorkingDirectory="INSTALLFOLDER" Icon="TrayLeafIcon" Description="游戏前关闭选定后台，结束后按需重新启动" />
             <RemoveFile Id="RemoveOldUsageShortcut" Name="使用说明.lnk" On="install" />
             <RemoveFolder Id="RemoveMenu" On="uninstall" />
             <RegistryValue Root="HKCU" Key="Software\TrayLeaf\Installer" Name="StartMenu" Type="integer" Value="1" KeyPath="yes" />
@@ -54,19 +67,27 @@
       <Directory Id="DesktopFolder">
         <Component Id="DesktopShortcut" Guid="{DB2E7DA1-46E7-5DAA-977F-1E38BB63AE51}" Win64="yes">
           <Condition>DESKTOP_SHORTCUT = "1"</Condition>
-          <Shortcut Id="DesktopLink" Name="托盘管家 TrayLeaf" Target="[INSTALLFOLDER]TrayLeaf.exe" WorkingDirectory="INSTALLFOLDER" Icon="TrayLeafIcon" />
+          <Shortcut Id="DesktopLink" Name="轻羽归栈 TrayLeaf" Target="[INSTALLFOLDER]TrayLeaf.exe" WorkingDirectory="INSTALLFOLDER" Icon="TrayLeafIcon" />
           <RegistryValue Root="HKCU" Key="Software\TrayLeaf\Installer" Name="Desktop" Type="integer" Value="1" KeyPath="yes" />
         </Component>
       </Directory>
     </Directory>
+    <!-- Configure startup only after commit; UAC consent is needed only for the highest-privilege task. A cancelled consent leaves the ordinary Run entry available. -->
+    <CustomAction Id="ConfigureStartup" FileKey="AppExe" ExeCommand="--configure-startup &quot;[AUTO_START]&quot;" Execute="immediate" Return="ignore" Impersonate="yes" />
+    <CustomAction Id="RemoveStartup" FileKey="AppExe" ExeCommand="--remove-startup" Execute="immediate" Return="ignore" Impersonate="yes" />
+    <InstallExecuteSequence>
+      <Custom Action="RemoveStartup" Before="RemoveFiles">Installed AND REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="ConfigureStartup" After="InstallFinalize">NOT REMOVE~="ALL"</Custom>
+    </InstallExecuteSequence>
     <Icon Id="TrayLeafIcon" SourceFile="..\assets\TrayLeaf.ico" />
     <Feature Id="Main" Title="TrayLeaf" Level="1" Absent="disallow">
-      <ComponentRef Id="ApplicationFiles" /><ComponentRef Id="StartMenuShortcut" /><ComponentRef Id="DesktopShortcut" />
+      <ComponentRef Id="StartupFallback" /><ComponentRef Id="ApplicationFiles" /><ComponentRef Id="StartMenuShortcut" /><ComponentRef Id="DesktopShortcut" />
     </Feature>
     <WixVariable Id="WixUIBannerBmp" Value="banner.bmp" />
     <WixVariable Id="WixUIDialogBmp" Value="dialog.bmp" />
     <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
     <UI Id="TrayLeafUI">
+      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Property="REINSTALLMODE" Value="amus" Order="1">1</Publish>
       <TextStyle Id="WixUI_Font_Normal" FaceName="Microsoft YaHei" Size="9" />
       <TextStyle Id="WixUI_Font_Bigger" FaceName="Microsoft YaHei" Size="13" />
       <TextStyle Id="WixUI_Font_Title" FaceName="Microsoft YaHei" Size="10" Bold="yes" />
@@ -76,9 +97,11 @@
       <Dialog Id="OptionsDlg" Width="370" Height="270" Title="[ProductName] 安装向导">
         <Control Id="Banner" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="yes" Text="WixUI_Bmp_Banner" />
         <Control Id="Title" Type="Text" X="15" Y="6" Width="300" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}安装选项" />
-        <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="16" Transparent="yes" NoPrefix="yes" Text="选择快捷方式，其他设置保持轻量。" />
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="16" Transparent="yes" NoPrefix="yes" Text="选择启动方式与快捷方式" />
         <Control Id="Desktop" Type="CheckBox" X="25" Y="67" Width="320" Height="20" Property="DESKTOP_SHORTCUT" CheckBoxValue="1" Text="创建桌面快捷方式" />
-        <Control Id="Notice" Type="Text" X="25" Y="104" Width="320" Height="91" Text="安装版本：v0.3.5&#13;&#10;仅为当前 Windows 用户安装；开始菜单快捷方式将自动创建。&#13;&#10;运行程序时仍会请求管理员权限。安装后不会自动运行。&#13;&#10;卸载保留个人设置与恢复记录，不修改系统服务或自启动。" />
+        <Control Id="StartMenu" Type="CheckBox" X="25" Y="94" Width="320" Height="20" Property="STARTMENU_SHORTCUT" CheckBoxValue="1" Text="添加到开始菜单" />
+        <Control Id="AutoStart" Type="CheckBox" X="25" Y="121" Width="320" Height="20" Property="AUTO_START" CheckBoxValue="1" Text="开机自启动" />
+        <Control Id="Notice" Type="Text" X="25" Y="159" Width="320" Height="61" Text="v0.8.0 · 当前用户安装&#13;&#10;自动识别已有安装路径，覆盖安装保留个人数据&#13;&#10;管理员自启动配置可能需要 Windows 权限确认&#13;&#10;安装后可在程序设置中随时修改" />
         <Control Id="Line" Type="Line" X="0" Y="234" Width="370" Height="0" />
         <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="上一步(&amp;B)" />
         <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="下一步(&amp;N)" />

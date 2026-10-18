@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -46,7 +46,7 @@ class AppearanceTests {
    db.Set("fontFamily","TrayLeaf Font Not Installed 7942");var w3=Load();var c3=new Controller(app,w3,db,true);c3.Start(null);Check("missing-font-falls-back",w3.FontFamily.Source=="Microsoft YaHei");w3.Hide();db.Set("fontFamily","Microsoft YaHei");
    Idle(w);var sc=Get<ScrollViewer>(w,"SettingsPanel");sc.ScrollToTop();Idle(w);
    foreach(int dpi in new[]{96,144,192,288}){var content=(FrameworkElement)w.Content;int width=(int)Math.Ceiling(content.ActualWidth*dpi/96.0),height=(int)Math.Ceiling(content.ActualHeight*dpi/96.0);var bmp=new RenderTargetBitmap(width,height,dpi,dpi,PixelFormats.Pbgra32);bmp.Render(content);string path=Path.Combine(dir,"settings-"+dpi+"dpi.png");var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bmp));using(var file=File.Create(path))encoder.Save(file);Check("render-"+dpi+"dpi",new FileInfo(path).Length>10000&&bmp.PixelWidth==width);Console.WriteLine("OBSERVED synthetic-render dpi="+dpi+" pixels="+width+"x"+height+" logical="+content.ActualWidth+"x"+content.ActualHeight);}
-   w.Width=960;w.Height=640;Idle(w);sc.ScrollToBottom();Idle(w);var save=Get<Button>(w,"SaveSettingsButton");var pt=save.TranslatePoint(new Point(0,0),sc);Check("save-reachable-minimum",pt.Y>=0&&pt.Y+save.ActualHeight<=sc.ActualHeight+1);
+   w.Width=960;w.Height=640;Idle(w);sc.ScrollToBottom();Idle(w);var save=Get<Button>(w,"SaveSettingsButton");var pt=save.TranslatePoint(new Point(0,0),w);Check("save-reachable-minimum",pt.Y>=0&&pt.Y+save.ActualHeight<=w.ActualHeight+1&&save.IsVisible);
   }
   w.Hide();}
  }catch(Exception ex){failed++;Console.Error.WriteLine(ex);}finally{app.Shutdown();}

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -28,7 +28,7 @@ class Version035Tests {
  }
  static void Ui(){var app=new Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};string path=Path.Combine(dir,"v035-ui.db");if(File.Exists(path))File.Delete(path);using(var db=new Database(path)){
  Window w;using(var s=typeof(Entry).Assembly.GetManifestResourceStream("TrayLeaf.MainWindow.xaml"))w=(Window)XamlReader.Load(s);
- Check("larger-default-window",w.Width>=1280&&w.Height>=960);var c=new Controller(app,w,db,true);c.Start(null);Idle(w);
+ Check("balanced-default-window",w.Width==1240&&w.Height==820);var c=new Controller(app,w,db,true);c.Start(null);Idle(w);
  var list=new List<AppRow>{Row(Path.Combine(dir,"alpha.exe"),"Alpha",false),Row(Path.Combine(dir,"beta.exe"),"Beta",true),Row(Path.Combine(dir,"gamma.exe"),"Gamma",false)};list[0].MemoryMB=900;list[1].MemoryMB=20;list[2].MemoryMB=100;
  var field=typeof(Controller).GetField("current",BindingFlags.Instance|BindingFlags.NonPublic);field.SetValue(c,list);var grid=Get<DataGrid>(w,"ProcessGrid");grid.ItemsSource=list;
  var historical=Row(list[1].Path,"Beta",false);historical.Args="--from-history 世界";long batch=db.Batch(new List<AppRow>{historical});Call(c,"ReloadCollections");Get<TextBox>(w,"Search").Text="non-matching-query";Get<ComboBox>(w,"CloseHistoryCombo").SelectedIndex=0;Idle(w);
@@ -40,7 +40,7 @@ class Version035Tests {
  Get<TextBox>(w,"Search").Text="Beta";Call(c,"ApplyFilter");Check("search-still-works",Visible(grid).Count==1&&Visible(grid)[0].Name=="Beta");Get<TextBox>(w,"Search").Text="";
  Call(c,"CompleteClose",batch,1,1);Check("completion-message-no-full-stop",Get<TextBlock>(w,"StatusText").Text=="共计 1 个程序，已全部关闭");Check("close-still-stays-on-current-page",Get<Grid>(w,"CurrentPanel").Visibility==Visibility.Visible);
  bool clean=true;foreach(int page in new[]{0,1,2}){Call(c,"Navigate",page);Idle(w);clean&=Texts(w).Where(t=>t.IsVisible).All(t=>!t.Text.Contains("。"));}Check("all-page-copy-no-chinese-full-stops",clean);Call(c,"Navigate",0);
- var size=typeof(Entry).Assembly.GetType("TrayLeaf.WindowSizing");Check("work-area-sizing",size!=null);if(size!=null){var fit=size.GetMethod("ApplyDefault",BindingFlags.Static|BindingFlags.Public|BindingFlags.NonPublic);fit.Invoke(null,new object[]{w,new Rect(0,0,1280,720)});Check("small-display-window-fits",w.Width<=1248&&w.Height<=688);fit.Invoke(null,new object[]{w,new Rect(0,0,1920,1080)});Check("large-display-prefers-expanded-size",w.Width==1280&&w.Height==960);}
- for(int i=1;i<=12;i++){var extra=Row(Path.Combine(dir,"background"+i+".exe"),"后台程序 "+i,false);extra.MemoryMB=128+i;Call(c,"LoadIcon",extra);current.Add(extra);}grid.ItemsSource=null;grid.ItemsSource=current;Call(c,"ApplyFilter");Idle(w);Check("expanded-window-shows-seven-or-more-programs",grid.ActualHeight>=7*grid.RowHeight+44);var content=(FrameworkElement)w.Content;var image=new RenderTargetBitmap((int)content.ActualWidth,(int)content.ActualHeight,96,96,PixelFormats.Pbgra32);image.Render(content);var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(image));using(var f=File.Create(Path.Combine(dir,"v035-current.png")))encoder.Save(f);Console.WriteLine("RENDER v035-current.png");Call(c,"Exit");}app.Shutdown();}
+ var size=typeof(Entry).Assembly.GetType("TrayLeaf.WindowSizing");Check("work-area-sizing",size!=null);if(size!=null){var fit=size.GetMethod("ApplyDefault",BindingFlags.Static|BindingFlags.Public|BindingFlags.NonPublic);fit.Invoke(null,new object[]{w,new Rect(0,0,1280,720)});Check("small-display-window-fits",w.Width<=1248&&w.Height<=688);fit.Invoke(null,new object[]{w,new Rect(0,0,1920,1080)});Check("large-display-prefers-expanded-size",w.Width==1240&&w.Height==820);}
+ for(int i=1;i<=12;i++){var extra=Row(Path.Combine(dir,"background"+i+".exe"),"后台程序 "+i,false);extra.MemoryMB=128+i;Call(c,"LoadIcon",extra);current.Add(extra);}grid.ItemsSource=null;grid.ItemsSource=current;Call(c,"ApplyFilter");Idle(w);Check("balanced-window-shows-five-or-more-programs",grid.ActualHeight>=5*grid.RowHeight+44);var content=(FrameworkElement)w.Content;var image=new RenderTargetBitmap((int)content.ActualWidth,(int)content.ActualHeight,96,96,PixelFormats.Pbgra32);image.Render(content);var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(image));using(var f=File.Create(Path.Combine(dir,"v035-current.png")))encoder.Save(f);Console.WriteLine("RENDER v035-current.png");Call(c,"Exit");}app.Shutdown();}
  [STAThread]static int Main(string[] args){dir=Path.GetFullPath(args[0]);try{Config();Ui();}catch(Exception ex){failed++;Console.Error.WriteLine(ex);}Console.WriteLine("RESULT passed="+passed+" failed="+failed);return failed==0?0:1;}
 }

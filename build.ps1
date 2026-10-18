@@ -1,4 +1,4 @@
-param([switch]$Diagnostic,[string]$OutputPath)
+﻿param([switch]$Diagnostic,[string]$OutputPath)
 $ErrorActionPreference='Stop'
 $root=$PSScriptRoot
 $csc=Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
@@ -19,4 +19,7 @@ if($LASTEXITCODE -ne 0){throw "编译失败，退出码 $LASTEXITCODE"}
 $config=Join-Path $root 'TrayLeaf.config'
 if(![String]::Equals([IO.Path]::GetFullPath($config),(Join-Path (Split-Path $OutputPath) 'TrayLeaf.config'),[StringComparison]::OrdinalIgnoreCase)){Copy-Item -LiteralPath $config -Destination ((Join-Path (Split-Path $OutputPath) 'TrayLeaf.config')) -Force}
 Get-Item -LiteralPath $OutputPath | Select-Object FullName,Length
-Get-FileHash -LiteralPath $OutputPath -Algorithm SHA256
+$sha=[Security.Cryptography.SHA256]::Create()
+$stream=[IO.File]::OpenRead($OutputPath)
+try {$hash=[BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-','')}finally{$stream.Dispose();$sha.Dispose()}
+Write-Output ('SHA256='+$hash)

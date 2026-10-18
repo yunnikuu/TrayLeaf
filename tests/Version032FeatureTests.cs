@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Diagnostics;
@@ -67,7 +67,7 @@ class Version032FeatureTests {
  [DllImport("user32.dll")]static extern bool PostMessage(IntPtr h,uint msg,IntPtr w,IntPtr l);
  static void ConfirmDelete(Controller controller,bool yes){
   uint thread=GetCurrentThreadId();bool found=false;var timer=new DispatcherTimer{Interval=TimeSpan.FromMilliseconds(40)};
-  timer.Tick+=delegate{EnumThreadWindows(thread,delegate(IntPtr h,IntPtr unused){var text=new StringBuilder(128);GetWindowText(h,text,text.Capacity);if(text.ToString()=="删除配置"){var button=GetDlgItem(h,yes?6:7);if(button!=IntPtr.Zero){found=true;PostMessage(button,0x00F5,IntPtr.Zero,IntPtr.Zero);timer.Stop();}}return true;},IntPtr.Zero);};
+  timer.Tick+=delegate{var dialog=Application.Current.Windows.Cast<Window>().FirstOrDefault(x=>x.Title=="删除配置");if(dialog==null)return;found=true;timer.Stop();if(yes)Find<Button>(dialog).First(x=>Convert.ToString(x.Content)=="确认继续").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));else dialog.Close();};
   timer.Start();try{Call(controller,"DeleteProfile","restore");}finally{timer.Stop();}Check(yes?"delete-confirmation-yes-dialog":"delete-confirmation-no-dialog",found);
  }
  static void LaunchFlow(){

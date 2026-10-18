@@ -1,4 +1,4 @@
-param([string]$WixBin=$env:WIX_BIN,[string]$OutputDir,[string]$PayloadDir)
+﻿param([string]$WixBin=$env:WIX_BIN,[string]$OutputDir,[string]$PayloadDir)
 $ErrorActionPreference='Stop'
 $root=Split-Path $PSScriptRoot
 if(!$WixBin){throw '请安装/解压 WiX Toolset v3.14.1，并通过 -WixBin 指定 candle.exe 与 light.exe 所在目录。'}
@@ -15,14 +15,14 @@ if(!$PayloadDir){
 }
 $PayloadDir=[IO.Path]::GetFullPath($PayloadDir)
 $v=[Diagnostics.FileVersionInfo]::GetVersionInfo((Join-Path $PayloadDir 'TrayLeaf.exe'))
-if($v.FileVersion -ne '0.3.5.0' -or $v.ProductVersion -ne '0.3.5'){throw '安装载荷版本必须为 0.3.5。'}
-$object=Join-Path $build 'TrayLeaf.wixobj';$msi=Join-Path $OutputDir 'TrayLeaf-v0.3.5-Windows-x64-Setup.msi'
+if($v.FileVersion -ne '0.8.0.0' -or $v.ProductVersion -ne '0.8.0'){throw '安装载荷版本必须为 0.8.0。'}
+$object=Join-Path $build 'TrayLeaf.wixobj';$msi=Join-Path $OutputDir 'TrayLeaf-v0.8.0-Windows-x64-Setup.msi'
 Push-Location $PSScriptRoot
 try {
  & (Join-Path $WixBin 'candle.exe') -nologo -arch x64 "-dPayloadDir=$PayloadDir" -out $object 'TrayLeaf.wxs'
  if($LASTEXITCODE -ne 0){throw "candle failed: $LASTEXITCODE"}
- # ICE91 is intentionally suppressed: this is exclusively a per-user package, never an all-users install.
- & (Join-Path $WixBin 'light.exe') -nologo -ext WixUIExtension -cultures:zh-cn -sice:ICE91 -out $msi $object
+ # ICE91: per-user package. ICE61: intentional same-version upgrade/rebuild support.
+ & (Join-Path $WixBin 'light.exe') -nologo -ext WixUIExtension -cultures:zh-cn -sice:ICE91 -sice:ICE61 -out $msi $object
  if($LASTEXITCODE -ne 0){throw "light failed: $LASTEXITCODE"}
 }finally{Pop-Location}
 $sha=[Security.Cryptography.SHA256]::Create()
