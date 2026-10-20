@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -30,15 +30,16 @@ namespace TrayLeaf {
     State(row,"closed","");return "已关闭";
    }catch(Exception ex){State(row,"closefailed",ex.Message);return "关闭失败："+ex.Message;}
   }
-  public string Restore(AppRow row) {
+  public string Restore(AppRow row) {return Restore(row,null);}
+  public string Restore(AppRow row,HashSet<string> runningPaths) {
    if(!row.CanRestore)return "该记录不可恢复";
    try {
     db.RememberLaunch(row);
-    if(ProcessService.IsRunning(row.Path)){row.Running=true;row.Selected=false;State(row,"skipped","同路径程序已经运行，未重复启动");return "已在运行 / 跳过";}
+    if(runningPaths==null?ProcessService.IsRunning(row.Path):runningPaths.Contains(row.Path??"")){row.Running=true;row.Selected=false;State(row,"skipped","同路径程序已经运行，未重复启动");return "已在运行 / 跳过";}
     db.Execute("UPDATE items SET args=?,admin=? WHERE id=?",row.Args,row.Admin?"1":"0",row.ItemId.ToString());
     State(row,"launching","");ProcessService.Launch(row.Path,row.Args,row.Admin);
     // Shell/UAC 返回只说明请求成功，不保证应用继续运行。
-    row.Running=null;State(row,"launched","");return "已发送启动请求";
+    row.Running=null;if(runningPaths!=null)runningPaths.Add(row.Path);State(row,"launched","");return "已发送启动请求";
    }catch(TimeoutException ex){State(row,"uncertain",ex.Message);return "启动请求超时 / 需核查";}catch(Exception ex){State(row,"launchfailed",ex.Message);return "启动失败："+ex.Message;}
   }
   public void RefreshStatuses(IEnumerable<AppRow> rows,HashSet<string> runningPaths){
@@ -54,3 +55,4 @@ namespace TrayLeaf {
   public void RecoverInterrupted(){db.Execute("UPDATE items SET status='uncertain',error='上次操作中断；请核查程序是否运行，必要时手动开启；' WHERE status IN ('prepared','launching','launched')");}
  }
 }
+

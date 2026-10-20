@@ -23,7 +23,7 @@ namespace TrayLeaf {
   public string Args {get{return args;}set{args=value??"";Change("Args");}}
   public string State {get{return state;}set{state=value;Change("State");}}
   public string Name {get;set;} public string ProcessName {get;set;}public string Path {get;set;} public string Source {get;set;}
-  public int HistoryPriority {get;set;} internal string HistoryOriginalSource;
+  public int ClosePriority {get;set;} public int HistoryPriority {get;set;} internal string HistoryOriginalSource;
   public bool Risk {get;set;}public string RiskReason {get;set;} public bool ArgsKnown {get;set;}public double MemoryMB {get;set;}
   public string Memory {get{return MemoryMB>0?MemoryMB.ToString("N0")+" MB":"—";}}
   public string PidText {get{return String.Join(", ",Processes.Select(x=>x.Pid.ToString()).ToArray());}}
@@ -40,28 +40,33 @@ namespace TrayLeaf {
  public static class ProcessService {
   public static bool Elevated {get {using(var id=WindowsIdentity.GetCurrent())return new WindowsPrincipal(id).IsInRole(WindowsBuiltInRole.Administrator);}}
   public static List<ProcInfo> Snapshot(out string note) {
-   var list=new List<ProcInfo>();note="";var services=new HashSet<int>();
-   try {using(var s=new ManagementObjectSearcher("SELECT ProcessId FROM Win32_Service WHERE ProcessId > 0"))using(var items=s.Get())foreach(ManagementObject m in items)using(m){services.Add(Convert.ToInt32(m["ProcessId"]));}}catch(Exception ex){note="服务识别受限："+ex.Message;}
-   try {using(var s=new ManagementObjectSearcher("SELECT ProcessId,ParentProcessId,Name,ExecutablePath,CommandLine FROM Win32_Process"))using(var items=s.Get())foreach(ManagementObject m in items)using(m){int pid=Convert.ToInt32(m["ProcessId"]);if(pid==Process.GetCurrentProcess().Id)continue;var info=new ProcInfo {Id=pid,Parent=Convert.ToInt32(m["ParentProcessId"]),Name=Convert.ToString(m["Name"]),Path=Convert.ToString(m["ExecutablePath"]),Command=m["CommandLine"] as string,Service=services.Contains(pid),Critical=Native.Critical((uint)pid)};try{using(var p=Process.GetProcessById(pid)){info.Started=p.StartTime.ToUniversalTime().Ticks;info.Memory=p.WorkingSet64/1048576.0;if(String.IsNullOrEmpty(info.Path))info.Path=p.MainModule.FileName;}}catch{}list.Add(info);}}
-   catch(Exception ex){note+=" 进程参数读取受限："+ex.Message;foreach(var p in Process.GetProcesses())using(p){if(p.Id==Process.GetCurrentProcess().Id)continue;var i=new ProcInfo{Id=p.Id,Name=p.ProcessName+".exe",Path="",Service=services.Contains(p.Id),Critical=Native.Critical((uint)p.Id)};try{i.Path=p.MainModule.FileName;i.Started=p.StartTime.ToUniversalTime().Ticks;i.Memory=p.WorkingSet64/1048576.0;}catch{}list.Add(i);}}
+   var list=new List<ProcInfo>();string serviceNote="",processNote="";
+   var serviceTask=Task.Run(()=>{var ids=new HashSet<int>();try{using(var search=new ManagementObjectSearcher("SELECT ProcessId FROM Win32_Service WHERE ProcessId > 0"))using(var items=search.Get())foreach(ManagementObject m in items)using(m)ids.Add(Convert.ToInt32(m["ProcessId"]));}catch(Exception ex){serviceNote="服务识别受限："+ex.Message;}return ids;});
+   try{using(var search=new ManagementObjectSearcher("SELECT ProcessId,ParentProcessId,Name,ExecutablePath,CommandLine FROM Win32_Process"))using(var items=search.Get())foreach(ManagementObject m in items)using(m){int pid=Convert.ToInt32(m["ProcessId"]);if(pid==Process.GetCurrentProcess().Id)continue;list.Add(new ProcInfo{Id=pid,Parent=Convert.ToInt32(m["ParentProcessId"]),Name=Convert.ToString(m["Name"]),Path=Convert.ToString(m["ExecutablePath"]),Command=m["CommandLine"] as string});}}
+   catch(Exception ex){processNote="进程参数读取受限："+ex.Message;list.Clear();foreach(var p in Process.GetProcesses())using(p){try{if(p.Id!=Process.GetCurrentProcess().Id)list.Add(new ProcInfo{Id=p.Id,Name=p.ProcessName+".exe",Path=""});}catch{}}}
+   var services=serviceTask.GetAwaiter().GetResult();
+   Parallel.ForEach(list,new ParallelOptions{MaxDegreeOfParallelism=4},info=>{info.Service=services.Contains(info.Id);info.Critical=Native.Critical((uint)info.Id);try{using(var p=Process.GetProcessById(info.Id)){info.Started=p.StartTime.ToUniversalTime().Ticks;info.Memory=p.WorkingSet64/1048576.0;if(String.IsNullOrEmpty(info.Path))info.Path=Native.ProcessPath(info.Id);}}catch{}});
+   note=(serviceNote+" "+processNote).Trim();
    return list;
   }
-  public static ScanResult Scan(bool all,bool candidates) {
+  public static ScanResult Scan(bool all,bool candidates) {return Scan(all,candidates,new string[0]);}
+  public static ScanResult Scan(bool all,bool candidates,IEnumerable<string> customPaths) {
+   var custom=new HashSet<string>(customPaths,StringComparer.OrdinalIgnoreCase);
    string note;var procs=Snapshot(out note);var result=new ScanResult{Note=note};var exact=new HashSet<int>();var probable=new HashSet<int>();var visible=new HashSet<int>();
    if(!all){visible=Native.VisiblePids();exact=Native.ToolbarPids();Dictionary<uint,List<IntPtr>> owners=null;
     try{using(var key=Registry.CurrentUser.OpenSubKey(@"Control Panel\NotifyIconSettings")){if(key!=null)foreach(string sub in key.GetSubKeyNames())using(var k=key.OpenSubKey(sub)){if(k==null)continue;string path=Native.ExpandKnownFolder(Convert.ToString(k.GetValue("ExecutablePath")));if(String.IsNullOrEmpty(path))continue;var matched=procs.Where(x=>!String.IsNullOrEmpty(x.Path)&&String.Equals(x.Path,path,StringComparison.OrdinalIgnoreCase)).ToList();if(matched.Count==0)continue;Guid guid;bool hasGuid=Guid.TryParse(Convert.ToString(k.GetValue("IconGuid")),out guid);if(hasGuid&&Native.IconRect(IntPtr.Zero,0,guid)){foreach(var x in matched)exact.Add(x.Id);continue;}object uidValue=k.GetValue("UID");foreach(var x in matched){bool confirmed=false;if(uidValue!=null){if(owners==null)owners=Native.WindowOwners();List<IntPtr> windows;if(owners.TryGetValue((uint)x.Id,out windows)){uint uid=Convert.ToUInt32(uidValue);foreach(IntPtr h in windows)if(Native.IconRect(h,uid,Guid.Empty)){confirmed=true;break;}}}if(confirmed)exact.Add(x.Id);else probable.Add(x.Id);}}}}
     catch(Exception ex){result.Note+=" 托盘识别受限："+ex.Message;}
    }
    result.Candidates=probable.Except(exact).Except(visible).Count();
-   var filtered=procs.Where(x=>all||visible.Contains(x.Id)||exact.Contains(x.Id)||(candidates&&probable.Contains(x.Id))).ToList();
+   var filtered=procs.Where(x=>all||custom.Contains(x.Path??"")||visible.Contains(x.Id)||exact.Contains(x.Id)||(candidates&&probable.Contains(x.Id))).ToList();
    foreach(var group in filtered.GroupBy(x=>String.IsNullOrEmpty(x.Path)?"pid:"+x.Id:x.Path,StringComparer.OrdinalIgnoreCase)){
     var list=procs.Where(x=>!String.IsNullOrEmpty(group.First().Path)&&String.Equals(x.Path,group.First().Path,StringComparison.OrdinalIgnoreCase)).ToList();if(list.Count==0)list=group.ToList();
     var main=list.OrderBy(x=>list.Any(p=>p.Id==x.Parent)?1:0).ThenBy(x=>x.Id).First();string name=System.IO.Path.GetFileNameWithoutExtension(main.Name);
     try{if(!String.IsNullOrEmpty(main.Path)&&!main.Path.StartsWith(@"\\")){string desc=FileVersionInfo.GetVersionInfo(main.Path).FileDescription;if(!String.IsNullOrWhiteSpace(desc))name=desc;}}catch{}
-    bool risk=list.Any(x=>Policy.HighRisk(x.Name,x.Service,x.Critical));var row=new AppRow{Name=name,ProcessName=main.Name,Path=main.Path??"",Args=Policy.Arguments(main.Command),ArgsKnown=main.Command!=null,Risk=risk,RiskReason=list.Any(x=>x.Critical)?"Windows 标记的关键进程":list.Any(x=>x.Service)?"Windows 服务进程（强制关闭可能中断系统服务）":risk?"系统基础或安全相关进程":"",MemoryMB=list.Sum(x=>x.Memory),Source=all?"全部进程":group.Any(x=>exact.Contains(x.Id))?"通知区域":group.Any(x=>visible.Contains(x.Id))?"任务栏窗口":"托盘候选",State="运行中"};
+    bool risk=list.Any(x=>Policy.HighRisk(x.Name,x.Service,x.Critical));var row=new AppRow{Name=name,ProcessName=main.Name,Path=main.Path??"",Args=Policy.Arguments(main.Command),ArgsKnown=main.Command!=null,Risk=risk,RiskReason=list.Any(x=>x.Critical)?"Windows 标记的关键进程":list.Any(x=>x.Service)?"Windows 服务进程（强制关闭可能中断系统服务）":risk?"系统基础或安全相关进程":"",MemoryMB=list.Sum(x=>x.Memory),Source=custom.Contains(main.Path??"")?"自定义":all?"全部进程":group.Any(x=>exact.Contains(x.Id))?"通知区域":group.Any(x=>visible.Contains(x.Id))?"任务栏窗口":"托盘候选",State="运行中"};
     row.Processes=list.Select(x=>new Identity{Pid=x.Id,Started=x.Started,Path=x.Path??""}).ToList();result.Rows.Add(row);
    }
-   result.Rows=result.Rows.OrderBy(x=>x.Risk).ThenBy(x=>x.Name,StringComparer.CurrentCultureIgnoreCase).ToList();return result;
+   result.Rows=result.Rows.OrderBy(x=>x.ProcessName,StringComparer.OrdinalIgnoreCase).ToList();return result;
   }
   static bool Verify(Process p,Identity expected) {
    if(p.HasExited)return false;

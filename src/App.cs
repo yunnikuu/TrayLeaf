@@ -116,21 +116,35 @@ namespace TrayLeaf {
    tray=new Forms.NotifyIcon{Icon=trayIcon,Text="轻羽归栈 · 后台暂时休息",Visible=true};
    trayMenu=new ContextMenu{Resources=w.Resources,Placement=System.Windows.Controls.Primitives.PlacementMode.MousePoint};
    AddTrayMenu("打开轻羽归栈",Show);AddTrayMenu("关闭所选程序",delegate{HotkeyAction(false);});AddTrayMenu("恢复所选程序",delegate{HotkeyAction(true);});
-   trayMenu.Items.Add(new Separator());AddTrayMenu("设置",delegate{Show();Navigate(2);});AddTrayMenu("关于",delegate{Show();Navigate(3);});AddTrayMenu("退出程序",Exit);
+   AddTrayMenu("设置",delegate{Show();Navigate(2);});AddTrayMenu("关于",delegate{Show();Navigate(3);});AddTrayMenu("退出程序",Exit);
    tray.MouseUp+=delegate(object sender,Forms.MouseEventArgs e){if(e.Button==Forms.MouseButtons.Right)w.Dispatcher.BeginInvoke(new Action(delegate{Native.SetForegroundWindow(handle);trayMenu.IsOpen=true;}));};
    tray.DoubleClick+=delegate{w.Dispatcher.BeginInvoke(new Action(Show));};
    SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(w.Dispatcher));
   }
   void AddTrayMenu(string title,Action action){var item=new MenuItem{Header=title};item.Click+=delegate{Guard(action);};trayMenu.Items.Add(item);}
   void Exit(){if(busy){Status("请等待当前操作结束后退出");Show();return;}exiting=true;if(picker!=null)picker.Stop();if(handle!=IntPtr.Zero){Native.UnregisterHotKey(handle,1);Native.UnregisterHotKey(handle,2);}if(tray!=null){tray.Visible=false;if(trayMenu!=null)trayMenu.IsOpen=false;tray.Dispose();}if(trayIcon!=null)trayIcon.Dispose();w.Close();app.Shutdown();}
-  void SetBusy(bool value){busy=value;foreach(string name in new[]{"ApplyCloseProfileButton","SaveCloseProfileButton","EditCloseProfileButton","DeleteCloseProfileButton","SaveCloseHistoryProfileButton","ApplyRestoreProfileButton","SaveRestoreProfileButton","EditRestoreProfileButton","DeleteRestoreProfileButton","RefreshButton","AddButton","PickButton","CloseButton","RestoreButton","EditButton","EditRestoreButton","ForgetButton","ManageHiddenButton","SaveSettingsButton","SelectAllButton","SelectNoneButton","ReloadHistoryButton","RefreshRestoreButton","SelectRestoreButton"})Get<Button>(name).IsEnabled=!value;Get<ComboBox>("ScanMode").IsEnabled=!value;Get<DataGrid>("ProcessGrid").IsEnabled=!value;Get<DataGrid>("RestoreGrid").IsEnabled=!value;Get<ComboBox>("BatchCombo").IsEnabled=!value;foreach(string c in new[]{"CloseHistoryCombo","CloseProfileCombo","RestoreProfileCombo"})Get<ComboBox>(c).IsEnabled=!value;}
+  void SetBusy(bool value){busy=value;
+   // Keep tables, navigation, search and selection interactive; serialize commands that alter the operation's data set.
+   foreach(string name in new[]{"ApplyCloseProfileButton","SaveCloseProfileButton","EditCloseProfileButton","DeleteCloseProfileButton","SaveCloseHistoryProfileButton","ApplyRestoreProfileButton","SaveRestoreProfileButton","EditRestoreProfileButton","DeleteRestoreProfileButton","RefreshButton","AddButton","PickButton","CloseButton","RestoreButton","EditButton","EditRestoreButton","ForgetButton","ManageHiddenButton","SaveSettingsButton","ReloadHistoryButton","RefreshRestoreButton"})Get<Button>(name).IsEnabled=!value;
+   Get<ComboBox>("ScanMode").IsEnabled=!value;Get<ComboBox>("BatchCombo").IsEnabled=!value;foreach(string c in new[]{"CloseHistoryCombo","CloseProfileCombo","RestoreProfileCombo"})Get<ComboBox>(c).IsEnabled=!value;
+  }
   async void Refresh(){if(busy||demo)return;SetBusy(true);Status("正在识别程序与启动信息…");try{await Scan();}catch(Exception ex){Error(ex);}finally{SetBusy(false);}}
-  async Task Scan(){bool all=Get<ComboBox>("ScanMode").SelectedIndex==1;bool candidates=Setting("candidates",false);var result=await Task.Run(()=>ProcessService.Scan(all,candidates));
-   var saved=db.Query("SELECT path,name,args,admin,chosen FROM managed").ToDictionary(x=>x[0],x=>x,StringComparer.OrdinalIgnoreCase);
+  internal Func<bool,bool,IEnumerable<string>,ScanResult> scanPrograms=ProcessService.Scan;
+  async Task Scan(){bool all=Get<ComboBox>("ScanMode").SelectedIndex==1;bool candidates=Setting("candidates",false);
    var custom=db.Query("SELECT key FROM settings WHERE key LIKE 'custom:%' AND value='1'").Select(x=>x[0].Substring(7)).ToList();
-   var outside=custom.Where(path=>!result.Rows.Any(x=>String.Equals(x.Path,path,StringComparison.OrdinalIgnoreCase))).ToList();
-   if(outside.Count>0){var full=await Task.Run(()=>ProcessService.Scan(true,false));foreach(string path in outside){var r=full.Rows.FirstOrDefault(x=>String.Equals(path,x.Path,StringComparison.OrdinalIgnoreCase));if(r==null){string[] data;saved.TryGetValue(path,out data);r=new AppRow{Name=data==null?Path.GetFileNameWithoutExtension(path):data[1],ProcessName=Path.GetFileName(path),Path=path,Source="自定义",State="未运行",ArgsKnown=true};}else r.Source="自定义";result.Rows.Add(r);}}
-   current=db.FilterVisible(result.Rows);foreach(var row in current){string[] v;if(saved.TryGetValue(row.Path??"",out v)){row.Admin=v[3]=="1";row.Selected=v[4]=="1";if(db.Get("args:"+row.Path,"0")=="1")row.Args=v[2];}if(row.Source=="托盘候选")row.Selected=false;Wire(row,false);LoadIcon(row);}
+   var result=await Task.Run(()=>{
+    var snapshot=scanPrograms(all,candidates,custom);
+    var saved=db.Query("SELECT path,name,args,admin,chosen FROM managed").ToDictionary(x=>x[0],x=>x,StringComparer.OrdinalIgnoreCase);
+    var argsKeys=new HashSet<string>(db.Query("SELECT key FROM settings WHERE key LIKE 'args:%' AND value='1'").Select(x=>x[0].Substring(5)),StringComparer.OrdinalIgnoreCase);
+    foreach(string path in custom.Where(path=>!snapshot.Rows.Any(x=>String.Equals(x.Path,path,StringComparison.OrdinalIgnoreCase)))){string[] data;saved.TryGetValue(path,out data);snapshot.Rows.Add(new AppRow{Name=data==null?Path.GetFileNameWithoutExtension(path):data[1],ProcessName=Path.GetFileName(path),Path=path,Source="自定义",State="未运行",ArgsKnown=true});}
+    snapshot.Rows=db.FilterVisible(snapshot.Rows);
+    foreach(var row in snapshot.Rows){string[] v;if(saved.TryGetValue(row.Path??"",out v)){row.Admin=v[3]=="1";row.Selected=v[4]=="1";if(argsKeys.Contains(row.Path))row.Args=v[2];}if(row.Source=="托盘候选")row.Selected=false;}
+    Parallel.ForEach(snapshot.Rows,new ParallelOptions{MaxDegreeOfParallelism=4},row=>ProgramPresentation.LoadIcon(row));return snapshot;
+   });
+   // Read the latest UI choices after awaiting so edits made during scanning are retained.
+   var latest=current.Where(r=>!String.IsNullOrWhiteSpace(r.Path)).GroupBy(r=>r.Path,StringComparer.OrdinalIgnoreCase).ToDictionary(g=>g.Key,g=>g.Last(),StringComparer.OrdinalIgnoreCase);
+   foreach(var row in result.Rows){AppRow old;if(latest.TryGetValue(row.Path??"",out old)){row.Selected=old.Selected;row.Admin=old.Admin;if(old.Args!=null)row.Args=old.Args;row.ClosePriority=old.ClosePriority;}Wire(row,false);}
+   current=result.Rows;
    scanNote="刷新于 "+DateTime.Now.ToString("HH:mm:ss")+" · 按 EXE 路径分组，同路径全部实例一并关闭";
    if(result.Candidates>0)scanNote+=" "+result.Candidates+" 个历史托盘候选"+(candidates?"已显示，默认不勾选":"未计入，可在设置中显示");
    if(!String.IsNullOrWhiteSpace(result.Note))scanNote+=" "+result.Note;ApplyHistoryPins();Get<DataGrid>("ProcessGrid").ItemsSource=current;ApplyFilter();Status(scanNote);
@@ -158,21 +172,25 @@ namespace TrayLeaf {
    if(!Ask("将关闭 "+rows.Count+" 个程序组（相同 EXE 路径的全部实例）\n\n"+String.Join("\n",rows.Take(12).Select(x=>"• "+x.Name))+"\n\n请先保存工作；将先请求程序退出；约 2.5 秒后仍运行的普通应用会自动结束，未保存的数据可能丢失；系统 / 服务进程强制结束前另行确认\n\n恢复只会重新启动程序，不恢复文件、窗口或会话","确认关闭所选程序"))return;
    var risks=rows.Where(x=>x.Risk).ToList();if(risks.Count>0&&Setting("warnRisk",true)&&!Ask("以下程序涉及系统关键组件或 Windows 服务：\n\n"+String.Join("\n",risks.Select(x=>x.ProcessName+" — "+x.RiskReason))+"\n\n继续可能导致服务中断、黑屏、注销或系统崩溃；是否仍然继续？\n不会绕过 Windows 自身的访问保护","系统 / 服务进程风险提醒"))return;
    if(rows.Any(x=>!x.ArgsKnown)&&!Ask("部分程序的启动参数无法读取；已知路径仍会保存，但重新启动的行为可能与原来不同\n可取消后通过“启动信息”手动补充参数；是否继续？","启动信息不完整"))return;
-   long batch=ops.Prepare(rows);int done=0;
-   foreach(var row in rows){row.State="正在关闭…";Status("正在处理："+row.Name);string result=await Task.Run(()=>ops.Close(row,r=>(bool)w.Dispatcher.Invoke(new Func<bool>(()=>Ask(r.Name+" 属于系统 / 服务进程，退出请求后仍在运行\n强制结束可能中断服务、导致黑屏或系统崩溃，也可能丢失未保存数据；是否仍要强制结束？","确认强制关闭")))));row.State=result;if(row.ItemStatus=="closed")done++;}
-   CompleteClose(batch,done,rows.Count);
+   var commands=rows.Select(ProgramPresentation.Command).ToList();long batch=ops.Prepare(commands);
+   var limiter=new SemaphoreSlim(4);var promptGate=new object();
+   try{await Task.WhenAll(rows.Select(async (row,index)=>{var command=commands[index];row.State="正在关闭…";row.ItemId=command.ItemId;await limiter.WaitAsync();try{
+    string result=await Task.Run(()=>ops.Close(command,r=>{lock(promptGate)return (bool)w.Dispatcher.Invoke(new Func<bool>(()=>Ask(r.Name+" 属于系统 / 服务进程，退出请求后仍在运行\n强制结束可能中断服务、导致黑屏或系统崩溃，也可能丢失未保存数据；是否仍要强制结束？","确认强制关闭")));}));
+    row.ItemStatus=command.ItemStatus;row.Error=command.Error;row.State=result;if(row.ItemStatus=="closed")row.Running=false;
+   }finally{limiter.Release();}}));}finally{limiter.Dispose();}
+   PinClosedRows(rows);CompleteClose(batch,commands.Count(r=>r.ItemStatus=="closed"),rows.Count);
   }
   void ReloadHistory(long preferred){loading=true;try{var rows=db.Query("SELECT b.id,b.created,COUNT(i.id),SUM(CASE WHEN i.status IN ('closed','launchfailed') THEN 1 ELSE 0 END) FROM batches b LEFT JOIN items i ON b.id=i.batch GROUP BY b.id ORDER BY b.id DESC");var batches=rows.Select(x=>new BatchInfo{Id=Int64.Parse(x[0]),Label=x[1]+"  ·  "+x[2]+" 项"}).ToList();var combo=Get<ComboBox>("BatchCombo");combo.ItemsSource=batches;combo.SelectedItem=batches.FirstOrDefault(x=>x.Id==preferred)??batches.FirstOrDefault();}finally{loading=false;}LoadHistory();}
-  void LoadHistory(){var b=Get<ComboBox>("BatchCombo").SelectedItem as BatchInfo;history=b==null?new List<AppRow>():ops.History(b.Id);foreach(var r in history){LoadIcon(r);Wire(r,true);}Get<DataGrid>("RestoreGrid").ItemsSource=history;}
+  void LoadHistory(){var b=Get<ComboBox>("BatchCombo").SelectedItem as BatchInfo;history=b==null?new List<AppRow>():ops.History(b.Id);foreach(var r in history){LoadIcon(r);Wire(r,true);}Get<DataGrid>("RestoreGrid").ItemsSource=history;HistoryPresentation.ApplyOrder(Get<DataGrid>("RestoreGrid"));}
   async void RestoreSelected(){if(busy||demo)return;SetBusy(true);try{await RestoreCore();}catch(Exception ex){Error(ex);}finally{SetBusy(false);}}
    async void RefreshRestore(){if(busy||demo)return;SetBusy(true);try{await RefreshRestoreCore();}catch(Exception ex){Error(ex);}finally{SetBusy(false);}}
    async Task RefreshRestoreCore(){var rows=history.ToList();Status("正在检查恢复列表中的程序状态…");var running=await Task.Run(()=>ProcessService.RunningPaths());ops.RefreshStatuses(rows,running);int active=rows.Count(r=>r.Running==true);Status("已刷新 "+rows.Count+" 项："+active+" 项运行中，"+(rows.Count-active)+" 项未运行；可勾选未运行的程序启动");}
    async Task RestoreCore(){var rows=history.Where(x=>x.Selected&&x.CanRestore).ToList();if(rows.Count==0){Show();Navigate(1);Status("请在恢复列表中勾选要开启的程序，或刷新状态后重新选择");return;}
     if(rows.Any(x=>x.ItemId==0))ops.PrepareLaunch(rows);
-    var checks=new List<Task>();
-    foreach(var r in rows){r.State="正在请求启动…";r.State=await Task.Run(()=>ops.Restore(r));r.Selected=false;if(r.ItemStatus=="launched")checks.Add(new LaunchMonitor().VerifyAsync(new[]{r},ops));}
-    Status("已处理启动请求，正在每 3 秒检查一次启动状态，最多检查 5 次…");
-    await Task.WhenAll(checks);
+    var commands=rows.Select(ProgramPresentation.Command).ToList();var running=await Task.Run(()=>ProcessService.RunningPaths());
+    for(int index=0;index<rows.Count;index++){var r=rows[index];var command=commands[index];r.State="正在请求启动…";string text=await Task.Run(()=>ops.Restore(command,running));r.ItemStatus=command.ItemStatus;r.Error=command.Error;r.Running=command.Running;r.State=r.ItemStatus=="launched"?"成功发送请求":text;r.Selected=false;}
+    Status("已处理启动请求，正在确认程序是否启动…");
+    await new LaunchMonitor().VerifyAsync(rows,ops);HistoryPresentation.ApplyOrder(Get<DataGrid>("RestoreGrid"));
     db.Prune();var failed=rows.Where(r=>r.ItemStatus=="launchfailed"||r.ItemStatus=="uncertain").ToList();int started=rows.Count(r=>r.ItemStatus=="started"),already=rows.Count(r=>r.ItemStatus=="skipped");Status("共计 "+rows.Count+" 个程序，启动成功 "+started+" 个"+(already>0?"，已在运行 "+already+" 个":"")+(failed.Count>0?"；未启动成功："+String.Join("、",failed.Select(r=>r.Name)):"；已完成启动状态检查"));
    }
   async void HotkeyAction(bool restore){if(busy||demo)return;SetBusy(true);try{if(restore){if(!history.Any(x=>x.ItemStatus=="configured")){var b=db.Query("SELECT batch FROM items WHERE status IN ('closed','launchfailed') ORDER BY batch DESC LIMIT 1");if(b.Count>0)ReloadHistory(Int64.Parse(b[0][0]));}Navigate(1);await RestoreCore();}else{await Scan();await CloseCore();}}catch(Exception ex){Error(ex);}finally{SetBusy(false);}}

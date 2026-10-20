@@ -1,7 +1,7 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-  <Product Id="{C724D38E-E8F1-5850-BA00-7F0BB44861E3}" Name="轻羽归栈 TrayLeaf" Language="2052" Version="0.8.3" Manufacturer="TrayLeaf" UpgradeCode="{49F5C6BF-41D9-5CF1-8FFA-917E45CCB2DC}" Codepage="936">
-    <Package Id="*" InstallerVersion="500" Compressed="yes" InstallScope="perUser" Platform="x64" Description="轻羽归栈 TrayLeaf v0.8.3 安装程序" Comments="Windows 10/11 x64；当前用户安装；可在程序设置中切换启动权限。" />
+  <Product Id="{C724D38E-E8F1-5850-BA00-7F0BB44861E3}" Name="轻羽归栈 TrayLeaf" Language="2052" Version="0.8.5" Manufacturer="TrayLeaf" UpgradeCode="{49F5C6BF-41D9-5CF1-8FFA-917E45CCB2DC}" Codepage="936">
+    <Package Id="*" InstallerVersion="500" Compressed="yes" InstallScope="perUser" Platform="x64" Description="轻羽归栈 TrayLeaf v0.8.5 安装程序" Comments="Windows 10/11 x64；当前用户安装；可在程序设置中切换启动权限。" />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
     <MajorUpgrade DowngradeErrorMessage="已安装更高版本的 TrayLeaf，请先卸载较新版本。" Schedule="afterInstallInitialize" AllowSameVersionUpgrades="yes" />
     <Property Id="ARPPRODUCTICON" Value="TrayLeafIcon" />

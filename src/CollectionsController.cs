@@ -1,4 +1,7 @@
 ﻿using System;
+using System.Windows.Data;
+using System.Windows.Input;
+using System.Windows.Threading;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -9,12 +12,16 @@ namespace TrayLeaf {
   bool loadingCollections;
   readonly HashSet<string> closeHistoryPaths=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
   void ApplyHistoryPins(){foreach(var row in current){if(closeHistoryPaths.Contains(row.Path??"")){if(row.HistoryOriginalSource==null)row.HistoryOriginalSource=row.Source;row.Source="历史记录";row.HistoryPriority=1;}else{if(row.HistoryOriginalSource!=null)row.Source=row.HistoryOriginalSource;row.HistoryOriginalSource=null;row.HistoryPriority=0;}}}
+  void PinClosedRows(IEnumerable<AppRow> rows){var paths=new HashSet<string>(rows.Select(r=>r.Path??""),StringComparer.OrdinalIgnoreCase);foreach(var r in current)r.ClosePriority=paths.Contains(r.Path??"")?1:0;
+   var grid=Get<DataGrid>("ProcessGrid");HistoryPresentation.ApplyOrder(grid);grid.Dispatcher.BeginInvoke(new Action(()=>{if(grid.Items.Count>0)grid.ScrollIntoView(grid.Items[0]);}),DispatcherPriority.Loaded);
+  }
   void CompleteClose(long batch,int done,int total){db.Prune();ReloadHistory(batch);ReloadCollections();var failed=ops.History(batch).Where(r=>r.ItemStatus!="closed").Select(r=>r.Name).ToList();Status(CloseSummary(done,total)+(done<total&&failed.Count>0?"；未关闭："+String.Join("、",failed):""));}
   static string CloseSummary(int done,int total){return done==total?"共计 "+total+" 个程序，已全部关闭":"共计 "+total+" 个程序，已关闭 "+done+" 个，未关闭 "+(total-done)+" 个；请查看状态";}
   void SetupCollections(){
-   HistoryPresentation.Configure(Get<DataGrid>("ProcessGrid"));
+   HistoryPresentation.Configure(Get<DataGrid>("ProcessGrid"));HistoryPresentation.Configure(Get<DataGrid>("RestoreGrid"));
    foreach(string kind in new[]{"close","restore"}){
     string prefix=kind=="close"?"Close":"Restore";string captured=kind;
+    ConfigureProfileSelection(Get<ComboBox>(prefix+"ProfileCombo"),()=>{if(!loadingCollections&&!busy)Guard(()=>ApplyProfile(captured));});
     Click("Save"+prefix+"ProfileButton",delegate{SaveProfile(captured,false,null);});
     Click("Edit"+prefix+"ProfileButton",delegate{SaveProfile(captured,true,null);});
     Click("Apply"+prefix+"ProfileButton",delegate{ApplyProfile(captured);});
@@ -24,6 +31,12 @@ namespace TrayLeaf {
    Get<ComboBox>("CloseHistoryCombo").SelectionChanged+=delegate{if(loadingCollections||busy)return;Guard(delegate{var set=Get<ComboBox>("CloseHistoryCombo").SelectedItem as SavedSet;if(set!=null)ApplyCloseRows(db.LoadSet(set.Id),"关闭历史");});};
    ProgramPresentation.AttachMenus(Get<DataGrid>("ProcessGrid"),Status);ProgramPresentation.AttachMenus(Get<DataGrid>("RestoreGrid"),Status);
    ReloadCollections();
+  }
+  static void ConfigureProfileSelection(ComboBox combo,Action apply){bool open=false,cancelled=false;
+   combo.DropDownOpened+=delegate{open=true;cancelled=false;};
+   combo.PreviewKeyDown+=delegate(object sender,KeyEventArgs e){if(e.Key==Key.Escape)cancelled=true;};
+   combo.SelectionChanged+=delegate{if(!open)apply();};
+   combo.DropDownClosed+=delegate{open=false;if(!cancelled)apply();};
   }
   void ReloadCollections(){loadingCollections=true;try{
    Get<ComboBox>("CloseHistoryCombo").ItemsSource=db.ListSets("history_close");
@@ -44,7 +57,7 @@ namespace TrayLeaf {
    var rows=db.LoadSet(set.Id);if(kind=="close"){ApplyCloseRows(rows,"关闭配置");return;}
    loading=true;try{Get<ComboBox>("BatchCombo").SelectedItem=null;}finally{loading=false;}
    history=rows;foreach(var r in history){r.ItemId=0;r.ItemStatus="configured";r.State=r.Selected?"配置 · 将启动":"配置 · 不启动";LoadIcon(r);Wire(r,true);}
-   Get<DataGrid>("RestoreGrid").ItemsSource=history;Status("已应用恢复配置“"+set.Name+"”；勾选项将在点击“开启所选程序”时启动");
+   Get<DataGrid>("RestoreGrid").ItemsSource=history;HistoryPresentation.ApplyOrder(Get<DataGrid>("RestoreGrid"));Status("已应用恢复配置“"+set.Name+"”；勾选项将在点击“开启所选程序”时启动");
   }
   void ApplyCloseRows(List<AppRow> rows,string source){
    bool fromHistory=source=="关闭历史";closeHistoryPaths.Clear();ApplyHistoryPins();

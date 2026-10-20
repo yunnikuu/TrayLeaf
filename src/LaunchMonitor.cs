@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -17,7 +17,7 @@ namespace TrayLeaf {
     foreach(var row in pending.ToList()){
      if(running!=null&&running.Contains(row.Path??"")){row.Running=true;ops.State(row,"started","");row.State="启动成功";pending.Remove(row);}
      else if(attempt==MaximumChecks){row.Running=false;ops.State(row,"launchfailed",error==null?"15 秒内未检测到此路径的运行进程，可刷新状态后重新启动":"状态检测未完成："+error);row.State="启动失败";pending.Remove(row);}
-     else row.State="已发送启动请求 · 检查 "+attempt+"/"+MaximumChecks;
+     else row.State="成功发送请求";
     }
    }
   }
