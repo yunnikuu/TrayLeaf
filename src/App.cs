@@ -64,6 +64,7 @@ namespace TrayLeaf {
   void Error(Exception ex){Show();ModernDialog.Confirm(w,ex.Message,"操作未完成",false);Text("StatusText",ex.Message);}
   bool Ask(string message,string title){Show();return ModernDialog.Confirm(w,message,title,true);}
   bool AskClose(string message,string title){if(!CloseConfirmation.Required(db))return true;Show();bool suppress;bool confirmed=ModernDialog.ConfirmClose(w,message,title,out suppress);CloseConfirmation.Remember(db,confirmed,suppress);Get<CheckBox>("ConfirmCloseInput").IsChecked=CloseConfirmation.Required(db);return confirmed;}
+  bool AskOptional(string message,string title,string key,string input){if(!ConfirmationPreference.Required(db,key))return true;Show();bool suppress;bool confirmed=ModernDialog.ConfirmOptional(w,message,title,out suppress);ConfirmationPreference.Remember(db,key,confirmed,suppress);Get<CheckBox>(input).IsChecked=ConfirmationPreference.Required(db,key);return confirmed;}
   void Status(string text){Text("StatusText",text);}
   public Controller(Application application,Window window,Database database,bool preview){app=application;w=window;db=database;ops=new OperationService(db);demo=preview;}
   public void Start(string smokePath) {
@@ -72,7 +73,7 @@ namespace TrayLeaf {
    w.FontFamily=Appearance.Resolve(db.Get("fontFamily",Appearance.DefaultFont));
    closeKey=HotkeySpec.Parse(db.Get("closeHotkey","3|49"));restoreKey=HotkeySpec.Parse(db.Get("restoreHotkey","3|50"));editClose=closeKey;editRestore=restoreKey;
    Get<TextBox>("CloseHotkeyInput").Text=editClose.ToString();Get<TextBox>("RestoreHotkeyInput").Text=editRestore.ToString();
-   Get<CheckBox>("ConfirmCloseInput").IsChecked=CloseConfirmation.Required(db);Get<CheckBox>("WarnRisk").IsChecked=Setting("warnRisk",true);Get<CheckBox>("ShowCandidates").IsChecked=Setting("candidates",false);
+   Get<CheckBox>("ConfirmCloseInput").IsChecked=CloseConfirmation.Required(db);Get<CheckBox>("ConfirmHideInput").IsChecked=ConfirmationPreference.Required(db,"confirmHide");Get<CheckBox>("WarnRisk").IsChecked=Setting("warnRisk",true);Get<CheckBox>("ShowCandidates").IsChecked=Setting("candidates",false);
    Get<CheckBox>("MinimizeToTray").IsChecked=Setting("minimizeTray",true);Get<CheckBox>("LaunchHidden").IsChecked=Setting("launchHidden",false);
    Text("DbPathText",db.FilePath);Text("PermissionText",demo?"界面预览 · 示例数据":ProcessService.Elevated?"管理员模式":"普通权限 · 部分进程受限");UpdateKeys();
    Get<ComboBox>("ScanMode").SelectedIndex=Setting("allProcesses",false)?1:0;
@@ -170,8 +171,8 @@ namespace TrayLeaf {
   async Task CloseCore(){
    if(current.Any(x=>x.Selected&&x.State=="请刷新识别"))await Scan();
    var rows=db.FilterVisible(current).Where(x=>x.Selected&&!x.Antivirus&&!Policy.IsAntivirus(x.ProcessName,x.Path)&&x.Processes.Count>0).ToList();if(rows.Count==0){Show();Navigate(0);Status("请先勾选正在运行的程序；未关闭任何程序");return;}
-   if(!AskClose("将关闭 "+rows.Count+" 个程序组（相同 EXE 路径的全部实例）\n\n"+String.Join("\n",rows.Take(12).Select(x=>"• "+x.Name))+"\n\n请先保存工作；将先请求程序退出；约 2.5 秒后仍运行的普通应用会自动结束，未保存的数据可能丢失；系统 / 服务进程强制结束前另行确认\n\n恢复只会重新启动程序，不恢复文件、窗口或会话","确认关闭所选程序"))return;
-   var risks=rows.Where(x=>x.Risk).ToList();if(risks.Count>0&&Setting("warnRisk",true)&&!Ask("以下程序涉及系统关键组件或 Windows 服务：\n\n"+String.Join("\n",risks.Select(x=>x.ProcessName+" — "+x.RiskReason))+"\n\n继续可能导致服务中断、黑屏、注销或系统崩溃；是否仍然继续？\n不会绕过 Windows 自身的访问保护","系统 / 服务进程风险提醒"))return;
+   if(!AskClose("将关闭 "+rows.Count+" 个程序组（相同 EXE 路径的全部实例）\n\n"+String.Join("\n",rows.Take(12).Select(x=>"• "+x.Name))+"\n\n请先保存工作,未保存的数据可能丢失！\n\n恢复只会重新启动程序，不恢复文件、窗口或会话","确认关闭所选程序"))return;
+   var risks=rows.Where(x=>x.Risk).ToList();if(risks.Count>0&&!AskOptional("以下程序涉及系统关键组件或 Windows 服务：\n\n"+String.Join("\n",risks.Select(x=>x.ProcessName+" — "+x.RiskReason))+"\n\n继续可能导致服务中断、黑屏、注销或系统崩溃；是否仍然继续？","系统 / 服务进程风险提醒","warnRisk","WarnRisk"))return;
    if(rows.Any(x=>!x.ArgsKnown)&&!Ask("部分程序的启动参数无法读取；已知路径仍会保存，但重新启动的行为可能与原来不同\n可取消后通过“启动信息”手动补充参数；是否继续？","启动信息不完整"))return;
    var commands=rows.Select(ProgramPresentation.Command).ToList();long batch=ops.Prepare(commands);
    var limiter=new SemaphoreSlim(4);var promptGate=new object();
@@ -196,9 +197,9 @@ namespace TrayLeaf {
    }
   async void HotkeyAction(bool restore){if(busy||demo)return;SetBusy(true);try{if(restore){if(!history.Any(x=>x.ItemStatus=="configured")){var b=db.Query("SELECT batch FROM items WHERE status IN ('closed','launchfailed') ORDER BY batch DESC LIMIT 1");if(b.Count>0)ReloadHistory(Int64.Parse(b[0][0]));}Navigate(1);await RestoreCore();}else{await Scan();await CloseCore();}}catch(Exception ex){Error(ex);}finally{SetBusy(false);}}
   void AddFile(){if(busy)return;var dialog=new Microsoft.Win32.OpenFileDialog{Title="添加需要管理的程序",Filter="应用程序 (*.exe)|*.exe",CheckFileExists=true};if(dialog.ShowDialog(w)==true){string p=Path.GetFullPath(dialog.FileName);db.SaveManaged(p,Path.GetFileNameWithoutExtension(p),"",false,false);db.Set("custom:"+p,"1");db.AllowProgram(new AppRow{Path=p,ProcessName=Path.GetFileName(p)});Refresh();}}
-  void UpdateHiddenCount(){int count=db.HiddenPrograms().Count;Text("HiddenCountText",count==0?"尚未移除程序；移除只影响当前列表，不会关闭或卸载程序":"已从当前列表移除 "+count+" 个程序；刷新与重启后继续生效，可随时恢复显示");}
-  void Forget(){if(busy)return;var candidates=current.Where(Matches).ToList();if(candidates.Count==0){Status("当前没有可以移除的程序");return;}var dialog=new ProgramSelectionDialog(w,candidates,false);if(dialog.ShowDialog()!=true)return;var rows=dialog.Chosen;db.HidePrograms(rows);foreach(var row in current.Where(x=>rows.Any(r=>String.Equals(r.Path,x.Path,StringComparison.OrdinalIgnoreCase)&&String.Equals(r.ProcessName,x.ProcessName,StringComparison.OrdinalIgnoreCase))))row.Selected=false;current=db.FilterVisible(current);Get<DataGrid>("ProcessGrid").ItemsSource=current;ApplyFilter();UpdateHiddenCount();Status("已移除 "+rows.Count+" 个程序；未关闭或卸载应用；可在“设置 → 隐藏程序管理”恢复显示");}
-  void ManageHidden(){if(busy)return;var rows=db.HiddenPrograms();if(rows.Count==0){Status("没有已移除的程序");return;}var dialog=new ProgramSelectionDialog(w,rows,true);if(dialog.ShowDialog()!=true)return;db.RestorePrograms(dialog.Chosen);UpdateHiddenCount();Refresh();Status("已允许 "+dialog.Chosen.Count+" 个程序重新显示；下次识别时加入列表，不会自动勾选或启动");}
+  void UpdateHiddenCount(){int count=db.HiddenPrograms().Count;Text("HiddenCountText",count==0?"尚未隐藏程序；隐藏只影响当前列表，不会关闭或卸载程序":"已从当前列表隐藏 "+count+" 个程序；刷新与重启后继续生效，可随时恢复显示");}
+  void Forget(){if(busy)return;var rows=current.Where(x=>x.Selected).ToList();if(rows.Count==0){Status("请先勾选要隐藏的程序");return;}if(!AskOptional("将隐藏 "+rows.Count+" 个程序\n\n"+String.Join("\n",rows.Take(12).Select(x=>"• "+x.Name))+"\n\n隐藏只影响程序列表，不会关闭或卸载应用，可在“设置 → 隐藏程序管理”恢复显示","隐藏所选程序","confirmHide","ConfirmHideInput"))return;db.HidePrograms(rows);foreach(var row in rows)row.Selected=false;current=db.FilterVisible(current);Get<DataGrid>("ProcessGrid").ItemsSource=current;ApplyFilter();UpdateHiddenCount();Status("已隐藏 "+rows.Count+" 个程序；未关闭或卸载应用；可在“设置 → 隐藏程序管理”恢复显示");}
+  void ManageHidden(){if(busy)return;var rows=db.HiddenPrograms();if(rows.Count==0){Status("没有已隐藏的程序");return;}var dialog=new ProgramSelectionDialog(w,rows,true);if(dialog.ShowDialog()!=true)return;db.RestorePrograms(dialog.Chosen);UpdateHiddenCount();Refresh();Status("已允许 "+dialog.Chosen.Count+" 个程序重新显示；下次识别时加入列表，不会自动勾选或启动");}
   void EditRow(AppRow row,bool past){if(row==null){Status("先单击一行，再编辑启动信息");return;}
    var dialog=new Window{UseLayoutRounding=true,SnapsToDevicePixels=true,Owner=w,Title="启动信息 · "+row.Name,Width=650,Height=390,ResizeMode=ResizeMode.NoResize,WindowStartupLocation=WindowStartupLocation.CenterOwner,Background=new SolidColorBrush(Color.FromRgb(244,247,251)),FontFamily=w.FontFamily,FontSize=13};dialog.Resources=w.Resources;var panel=new StackPanel{Margin=new Thickness(24)};dialog.Content=panel;
    panel.Children.Add(new TextBlock{Text="程序路径（只读）",FontWeight=FontWeights.SemiBold});panel.Children.Add(new TextBox{Text=row.Path,IsReadOnly=true,Margin=new Thickness(0,10,0,16)});
@@ -215,7 +216,7 @@ namespace TrayLeaf {
   void SaveSettings(){bool oldAuto=demo?Setting("autoStart",false):StartupManager.Enabled,oldAdmin=demo?Setting("runAsAdmin",true):StartupManager.PreferAdmin;bool startupApplied=false;
    try{if(!demo)RegisterKeys(editClose,editRestore);}catch(Exception original){try{if(!demo)RegisterKeys(closeKey,restoreKey);}catch(Exception rollback){throw new InvalidOperationException(original.Message+"\n原快捷键也未能恢复："+rollback.Message);}throw;}
    try{db.Execute("BEGIN IMMEDIATE");db.Set("closeHotkey",editClose.Code);db.Set("restoreHotkey",editRestore.Code);db.Set("fontFamily",Appearance.Resolve(Get<ComboBox>("FontFamilyInput").SelectedValue as string??w.FontFamily.Source).Source);
-    foreach(var pair in new[]{new[]{"confirmClose","ConfirmCloseInput"},new[]{"warnRisk","WarnRisk"},new[]{"candidates","ShowCandidates"},new[]{"minimizeTray","MinimizeToTray"},new[]{"launchHidden","LaunchHidden"}})db.Set(pair[0],Get<CheckBox>(pair[1]).IsChecked==true?"1":"0");
+    foreach(var pair in new[]{new[]{"confirmClose","ConfirmCloseInput"},new[]{"confirmHide","ConfirmHideInput"},new[]{"warnRisk","WarnRisk"},new[]{"candidates","ShowCandidates"},new[]{"minimizeTray","MinimizeToTray"},new[]{"launchHidden","LaunchHidden"}})db.Set(pair[0],Get<CheckBox>(pair[1]).IsChecked==true?"1":"0");
     SaveModern();startupApplied=true;db.Execute("COMMIT");
    }catch{db.Execute("ROLLBACK");if(!demo){RegisterKeys(closeKey,restoreKey);if(startupApplied)StartupManager.Apply(oldAuto,oldAdmin);}throw;}
    w.FontFamily=Appearance.Resolve(db.Get("fontFamily",Appearance.DefaultFont));closeKey=editClose;restoreKey=editRestore;UpdateKeys();Status("设置已保存 · "+(Setting("warnRisk",true)?"系统与服务进程提醒已开启":"系统与服务进程提醒已关闭"));

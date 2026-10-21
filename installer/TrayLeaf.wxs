@@ -1,9 +1,9 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-  <Product Id="*" Name="轻羽归栈 TrayLeaf" Language="2052" Version="0.9.0" Manufacturer="TrayLeaf" UpgradeCode="{49F5C6BF-41D9-5CF1-8FFA-917E45CCB2DC}" Codepage="936">
+  <Product Id="*" Name="轻羽归栈 TrayLeaf" Language="2052" Version="0.9.1" Manufacturer="TrayLeaf" UpgradeCode="{49F5C6BF-41D9-5CF1-8FFA-917E45CCB2DC}" Codepage="936">
     <!-- Elevated engine can update rollback-file security on protected/custom drives.
          Do not set ALLUSERS: preserve the existing per-user upgrade context. -->
-    <Package Id="*" InstallerVersion="500" Compressed="yes" InstallPrivileges="elevated" Platform="x64" Description="轻羽归栈 TrayLeaf v0.9.0 安装程序" Comments="Windows 10/11 x64；当前用户安装；安装时请求提升权限以支持覆盖更新。" />
+    <Package Id="*" InstallerVersion="500" Compressed="yes" InstallPrivileges="elevated" Platform="x64" Description="轻羽归栈 TrayLeaf v0.9.1 安装程序" Comments="Windows 10/11 x64；当前用户安装；安装时请求提升权限以支持覆盖更新。" />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
     <MajorUpgrade DowngradeErrorMessage="已安装更高版本的 TrayLeaf，请先卸载较新版本。" Schedule="afterInstallInitialize" AllowSameVersionUpgrades="yes" />
     <Property Id="ARPPRODUCTICON" Value="TrayLeafIcon" />
@@ -99,7 +99,40 @@
       <TextStyle Id="WixUI_Font_Title" FaceName="Microsoft YaHei" Size="10" Bold="yes" />
       <Property Id="DefaultUIFont" Value="WixUI_Font_Normal" />
       <Property Id="WixUI_Mode" Value="InstallDir" />
-      <DialogRef Id="BrowseDlg" /><DialogRef Id="DiskCostDlg" /><DialogRef Id="ErrorDlg" /><DialogRef Id="FatalError" /><DialogRef Id="FilesInUse" /><DialogRef Id="MsiRMFilesInUse" /><DialogRef Id="PrepareDlg" /><DialogRef Id="ProgressDlg" /><DialogRef Id="ResumeDlg" /><DialogRef Id="UserExit" />
+      <DialogRef Id="DiskCostDlg" /><DialogRef Id="ErrorDlg" /><DialogRef Id="FatalError" /><DialogRef Id="FilesInUse" /><DialogRef Id="MsiRMFilesInUse" /><DialogRef Id="PrepareDlg" /><DialogRef Id="ProgressDlg" /><DialogRef Id="ResumeDlg" /><DialogRef Id="UserExit" />
+      <!-- Own the picker so normalization and path validation happen before it closes. -->
+      <Dialog Id="TrayLeafBrowseDlg" Width="370" Height="270" Title="[ProductName] 安装向导">
+        <Control Id="Banner" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="yes" Text="WixUI_Bmp_Banner" />
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="300" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}选择安装文件夹" />
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="320" Height="16" Transparent="yes" NoPrefix="yes" Text="确认后自动补全 TrayLeaf 子文件夹" />
+        <Control Id="Drives" Type="DirectoryCombo" X="20" Y="58" Width="330" Height="18" Property="_BrowseProperty" Indirect="yes" Fixed="yes" Remote="yes" Removable="yes" />
+        <Control Id="Folders" Type="DirectoryList" X="20" Y="84" Width="330" Height="108" Property="_BrowseProperty" Indirect="yes">
+          <Subscribe Event="DirectoryListUp" Attribute="Ignore" />
+          <Subscribe Event="DirectoryListNew" Attribute="Ignore" />
+        </Control>
+        <Control Id="FolderLabel" Type="Text" X="20" Y="204" Width="48" Height="16" Text="文件夹：" />
+        <Control Id="Folder" Type="PathEdit" X="70" Y="201" Width="280" Height="18" Property="_BrowseProperty" Indirect="yes" />
+        <Control Id="Line" Type="Line" X="0" Y="234" Width="370" Height="0" />
+        <Control Id="Up" Type="PushButton" X="20" Y="243" Width="62" Height="17" Text="上一级">
+          <Publish Event="DirectoryListUp" Value="0">1</Publish>
+        </Control>
+        <Control Id="NewFolder" Type="PushButton" X="88" Y="243" Width="72" Height="17" Text="新建文件夹">
+          <Publish Event="DirectoryListNew" Value="0">1</Publish>
+        </Control>
+        <Control Id="OK" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="确定">
+          <Publish Event="SetTargetPath" Value="[WIXUI_INSTALLDIR]" Order="1">1</Publish>
+          <Publish Event="DoAction" Value="AppendProductFolderWithSlash" Order="2"><![CDATA[INSTALLFOLDER AND INSTALLFOLDER ~>> "\" AND NOT (INSTALLFOLDER ~>> "\TrayLeaf" OR INSTALLFOLDER ~>> "\TrayLeaf\")]]></Publish>
+          <Publish Event="DoAction" Value="AppendProductFolder" Order="3"><![CDATA[INSTALLFOLDER AND NOT (INSTALLFOLDER ~>> "\" OR INSTALLFOLDER ~>> "\TrayLeaf")]]></Publish>
+          <Publish Event="SetTargetPath" Value="[_BrowseProperty]" Order="4">1</Publish>
+          <Publish Event="DoAction" Value="WixUIValidatePath" Order="5">NOT WIXUI_DONTVALIDATEPATH</Publish>
+          <Publish Event="SpawnDialog" Value="InvalidDirDlg" Order="6"><![CDATA[NOT WIXUI_DONTVALIDATEPATH AND WIXUI_INSTALLDIR_VALID<>"1"]]></Publish>
+          <Publish Event="EndDialog" Value="Return" Order="7">WIXUI_DONTVALIDATEPATH OR WIXUI_INSTALLDIR_VALID="1"</Publish>
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="取消">
+          <Publish Event="Reset" Value="0" Order="1">1</Publish>
+          <Publish Event="EndDialog" Value="Return" Order="2">1</Publish>
+        </Control>
+      </Dialog>
       <Dialog Id="TrayLeafInstallDirDlg" Width="370" Height="270" Title="[ProductName] 安装向导">
         <Control Id="Banner" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="yes" Text="WixUI_Bmp_Banner" />
         <Control Id="Title" Type="Text" X="15" Y="6" Width="300" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}目标文件夹" />
@@ -115,8 +148,6 @@
         <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="下一步(&amp;N)" />
         <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="取消"><Publish Event="SpawnDialog" Value="CancelDlg">1</Publish></Control>
       </Dialog>
-      <Publish Dialog="BrowseDlg" Control="OK" Event="DoAction" Value="WixUIValidatePath" Order="3">1</Publish>
-      <Publish Dialog="BrowseDlg" Control="OK" Event="SpawnDialog" Value="InvalidDirDlg" Order="4"><![CDATA[NOT WIXUI_DONTVALIDATEPATH AND WIXUI_INSTALLDIR_VALID<>"1"]]></Publish>
       <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999">1</Publish>
       <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="TrayLeafInstallDirDlg">NOT Installed</Publish>
       <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg">Installed AND PATCH</Publish>
@@ -128,7 +159,7 @@
       <Publish Dialog="TrayLeafInstallDirDlg" Control="Next" Event="SpawnDialog" Value="InvalidDirDlg" Order="5"><![CDATA[NOT WIXUI_DONTVALIDATEPATH AND WIXUI_INSTALLDIR_VALID<>"1"]]></Publish>
       <Publish Dialog="TrayLeafInstallDirDlg" Control="Next" Event="EndDialog" Value="Return" Order="6">WIXUI_DONTVALIDATEPATH OR WIXUI_INSTALLDIR_VALID="1"</Publish>
       <Publish Dialog="TrayLeafInstallDirDlg" Control="ChangeFolder" Property="_BrowseProperty" Value="[WIXUI_INSTALLDIR]" Order="1">1</Publish>
-      <Publish Dialog="TrayLeafInstallDirDlg" Control="ChangeFolder" Event="SpawnDialog" Value="BrowseDlg" Order="2">1</Publish>
+      <Publish Dialog="TrayLeafInstallDirDlg" Control="ChangeFolder" Event="SpawnDialog" Value="TrayLeafBrowseDlg" Order="2">1</Publish>
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="TrayLeafInstallDirDlg" Order="1">NOT Installed</Publish>
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg" Order="2">Installed AND NOT PATCH</Publish>
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="2">Installed AND PATCH</Publish>
