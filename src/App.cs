@@ -73,7 +73,7 @@ namespace TrayLeaf {
    w.FontFamily=Appearance.Resolve(db.Get("fontFamily",Appearance.DefaultFont));
    closeKey=HotkeySpec.Parse(db.Get("closeHotkey","3|49"));restoreKey=HotkeySpec.Parse(db.Get("restoreHotkey","3|50"));editClose=closeKey;editRestore=restoreKey;
    Get<TextBox>("CloseHotkeyInput").Text=editClose.ToString();Get<TextBox>("RestoreHotkeyInput").Text=editRestore.ToString();
-   Get<CheckBox>("ConfirmCloseInput").IsChecked=CloseConfirmation.Required(db);Get<CheckBox>("ConfirmHideInput").IsChecked=ConfirmationPreference.Required(db,"confirmHide");Get<CheckBox>("WarnRisk").IsChecked=Setting("warnRisk",true);Get<CheckBox>("ShowCandidates").IsChecked=Setting("candidates",false);
+   Get<CheckBox>("ConfirmCloseInput").IsChecked=CloseConfirmation.Required(db);Get<CheckBox>("ConfirmHideInput").IsChecked=ConfirmationPreference.Required(db,"confirmHide");Get<CheckBox>("ConfirmForceInput").IsChecked=ConfirmationPreference.Required(db,"confirmForce");Get<CheckBox>("ShowCandidates").IsChecked=Setting("candidates",false);
    Get<CheckBox>("MinimizeToTray").IsChecked=Setting("minimizeTray",true);Get<CheckBox>("LaunchHidden").IsChecked=Setting("launchHidden",false);
    Text("DbPathText",db.FilePath);Text("PermissionText",demo?"界面预览 · 示例数据":ProcessService.Elevated?"管理员模式":"普通权限 · 部分进程受限");UpdateKeys();
    Get<ComboBox>("ScanMode").SelectedIndex=Setting("allProcesses",false)?1:0;
@@ -171,13 +171,14 @@ namespace TrayLeaf {
   async Task CloseCore(){
    if(current.Any(x=>x.Selected&&x.State=="请刷新识别"))await Scan();
    var rows=db.FilterVisible(current).Where(x=>x.Selected&&!x.Antivirus&&!Policy.IsAntivirus(x.ProcessName,x.Path)&&x.Processes.Count>0).ToList();if(rows.Count==0){Show();Navigate(0);Status("请先勾选正在运行的程序；未关闭任何程序");return;}
-   if(!AskClose("将关闭 "+rows.Count+" 个程序组（相同 EXE 路径的全部实例）\n\n"+String.Join("\n",rows.Take(12).Select(x=>"• "+x.Name))+"\n\n请先保存工作,未保存的数据可能丢失！\n\n恢复只会重新启动程序，不恢复文件、窗口或会话","确认关闭所选程序"))return;
-   var risks=rows.Where(x=>x.Risk).ToList();if(risks.Count>0&&!AskOptional("以下程序涉及系统关键组件或 Windows 服务：\n\n"+String.Join("\n",risks.Select(x=>x.ProcessName+" — "+x.RiskReason))+"\n\n继续可能导致服务中断、黑屏、注销或系统崩溃；是否仍然继续？","系统 / 服务进程风险提醒","warnRisk","WarnRisk"))return;
+   var risks=rows.Where(x=>x.Risk).ToList();
+   string riskNotice=risks.Count==0?"":"\n\n包含系统 / 服务进程："+String.Join("、",risks.Select(x=>x.Name))+"\n关闭可能中断服务、导致黑屏、注销或系统崩溃";
+   if(!AskClose("将关闭 "+rows.Count+" 个程序组（相同 EXE 路径的全部实例）\n\n"+String.Join("\n",rows.Take(12).Select(x=>"• "+x.Name))+"\n\n请先保存工作,未保存的数据可能丢失！"+riskNotice+"\n\n恢复只会重新启动程序，不恢复文件、窗口或会话","确认关闭所选程序"))return;
    if(rows.Any(x=>!x.ArgsKnown)&&!Ask("部分程序的启动参数无法读取；已知路径仍会保存，但重新启动的行为可能与原来不同\n可取消后通过“启动信息”手动补充参数；是否继续？","启动信息不完整"))return;
    var commands=rows.Select(ProgramPresentation.Command).ToList();long batch=ops.Prepare(commands);
    var limiter=new SemaphoreSlim(4);var promptGate=new object();
    try{await Task.WhenAll(rows.Select(async (row,index)=>{var command=commands[index];row.State="正在关闭…";row.ItemId=command.ItemId;await limiter.WaitAsync();try{
-    string result=await Task.Run(()=>ops.Close(command,r=>{lock(promptGate)return (bool)w.Dispatcher.Invoke(new Func<bool>(()=>Ask(r.Name+" 属于系统 / 服务进程，退出请求后仍在运行\n强制结束可能中断服务、导致黑屏或系统崩溃，也可能丢失未保存数据；是否仍要强制结束？","确认强制关闭")));}));
+    string result=await Task.Run(()=>ops.Close(command,r=>{lock(promptGate)return (bool)w.Dispatcher.Invoke(new Func<bool>(()=>AskOptional(r.Name+" 属于系统 / 服务进程，退出请求后仍在运行\n强制结束可能中断服务、导致黑屏或系统崩溃，也可能丢失未保存数据；是否仍要强制结束？","确认强制关闭","confirmForce","ConfirmForceInput")));}));
     row.ItemStatus=command.ItemStatus;row.Error=command.Error;row.State=result;if(row.ItemStatus=="closed")row.Running=false;
    }finally{limiter.Release();}}));}finally{limiter.Dispose();}
    PinClosedRows(rows);CompleteClose(batch,commands.Count(r=>r.ItemStatus=="closed"),rows.Count);
@@ -216,10 +217,10 @@ namespace TrayLeaf {
   void SaveSettings(){bool oldAuto=demo?Setting("autoStart",false):StartupManager.Enabled,oldAdmin=demo?Setting("runAsAdmin",true):StartupManager.PreferAdmin;bool startupApplied=false;
    try{if(!demo)RegisterKeys(editClose,editRestore);}catch(Exception original){try{if(!demo)RegisterKeys(closeKey,restoreKey);}catch(Exception rollback){throw new InvalidOperationException(original.Message+"\n原快捷键也未能恢复："+rollback.Message);}throw;}
    try{db.Execute("BEGIN IMMEDIATE");db.Set("closeHotkey",editClose.Code);db.Set("restoreHotkey",editRestore.Code);db.Set("fontFamily",Appearance.Resolve(Get<ComboBox>("FontFamilyInput").SelectedValue as string??w.FontFamily.Source).Source);
-    foreach(var pair in new[]{new[]{"confirmClose","ConfirmCloseInput"},new[]{"confirmHide","ConfirmHideInput"},new[]{"warnRisk","WarnRisk"},new[]{"candidates","ShowCandidates"},new[]{"minimizeTray","MinimizeToTray"},new[]{"launchHidden","LaunchHidden"}})db.Set(pair[0],Get<CheckBox>(pair[1]).IsChecked==true?"1":"0");
+    foreach(var pair in new[]{new[]{"confirmClose","ConfirmCloseInput"},new[]{"confirmHide","ConfirmHideInput"},new[]{"confirmForce","ConfirmForceInput"},new[]{"candidates","ShowCandidates"},new[]{"minimizeTray","MinimizeToTray"},new[]{"launchHidden","LaunchHidden"}})db.Set(pair[0],Get<CheckBox>(pair[1]).IsChecked==true?"1":"0");
     SaveModern();startupApplied=true;db.Execute("COMMIT");
    }catch{db.Execute("ROLLBACK");if(!demo){RegisterKeys(closeKey,restoreKey);if(startupApplied)StartupManager.Apply(oldAuto,oldAdmin);}throw;}
-   w.FontFamily=Appearance.Resolve(db.Get("fontFamily",Appearance.DefaultFont));closeKey=editClose;restoreKey=editRestore;UpdateKeys();Status("设置已保存 · "+(Setting("warnRisk",true)?"系统与服务进程提醒已开启":"系统与服务进程提醒已关闭"));
+   w.FontFamily=Appearance.Resolve(db.Get("fontFamily",Appearance.DefaultFont));closeKey=editClose;restoreKey=editRestore;UpdateKeys();Status("设置已保存");
   }
   void FillDemo(){Navigate(0);var names=new[]{"音乐播放器","聊天应用","云盘同步","创意工具更新器","Windows 资源管理器"};var exe=new[]{"MusicPlayer.exe","Messenger.exe","CloudSync.exe","CreativeUpdater.exe","explorer.exe"};for(int i=0;i<5;i++)current.Add(new AppRow{Name=names[i],ProcessName=exe[i],Path=@"C:\Program Files\Example\"+exe[i],Source=i<3?"通知区域":"任务栏窗口",MemoryMB=new[]{248.0,312,89,65,143}[i],Selected=i<3,ArgsKnown=true,Risk=i==4,RiskReason=i==4?"系统基础进程":"",State="运行中"});foreach(var row in current)LoadIcon(row);Get<DataGrid>("ProcessGrid").ItemsSource=current;ApplyFilter();Status("界面预览使用示例数据 · 正式运行时自动识别实际进程");}
  }

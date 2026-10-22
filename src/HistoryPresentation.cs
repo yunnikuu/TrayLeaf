@@ -28,8 +28,9 @@ namespace TrayLeaf {
   }
   sealed class RowComparer:IComparer {
    readonly string key;readonly int direction;internal RowComparer(string k,ListSortDirection d){key=k;direction=d==ListSortDirection.Ascending?1:-1;}
-   static string Name(AppRow r){return !String.IsNullOrWhiteSpace(r.ProcessName)?r.ProcessName:!String.IsNullOrWhiteSpace(r.Path)?Path.GetFileName(r.Path):r.Name??"";}
-   static int NameOrder(AppRow a,AppRow b,int direction){bool ac=Chinese(String.IsNullOrWhiteSpace(a.Name)?Name(a):a.Name),bc=Chinese(String.IsNullOrWhiteSpace(b.Name)?Name(b):b.Name);if(ac!=bc)return (ac?-1:1)*direction;return Text(ac?(a.Name??Name(a)).TrimStart():Name(a),bc?(b.Name??Name(b)).TrimStart():Name(b),direction);}
+   // Sort the label users actually see, including in the all-processes view.
+   static string Name(AppRow r){return (!String.IsNullOrWhiteSpace(r.Name)?r.Name:!String.IsNullOrWhiteSpace(r.ProcessName)?r.ProcessName:!String.IsNullOrWhiteSpace(r.Path)?Path.GetFileName(r.Path):"").Trim();}
+   static int NameOrder(AppRow a,AppRow b,int direction){return Text(Name(a),Name(b),direction);}
    // Group by the leading display character, not a Chinese suffix in an English title.
    static bool Chinese(string value){if(String.IsNullOrWhiteSpace(value))return false;char c=value.TrimStart()[0];return (c>=0x3400&&c<=0x9FFF)||(c>=0xF900&&c<=0xFAFF);}
    static int Text(string a,string b,int direction){bool ac=Chinese(a),bc=Chinese(b);if(ac!=bc)return (ac?-1:1)*direction;int n=(ac?StringComparer.CurrentCulture:StringComparer.OrdinalIgnoreCase).Compare(a??"",b??"");return n*direction;}
@@ -39,7 +40,9 @@ namespace TrayLeaf {
     int n=b.ClosePriority.CompareTo(a.ClosePriority);if(n!=0)return n;n=b.HistoryPriority.CompareTo(a.HistoryPriority);if(n!=0)return n;
     // The custom glyph points down for Descending; name order follows that visual contract.
     switch(key){case "MemoryMB":n=a.MemoryMB.CompareTo(b.MemoryMB);n*=direction;break;case "Source":n=Source(a.Source).CompareTo(Source(b.Source));n*=direction;break;case "Risk":case "RiskText":n=(a.Antivirus?2:(a.Risk?1:0)).CompareTo(b.Antivirus?2:(b.Risk?1:0));n*=-direction;break;case "State":n=State(a).CompareTo(State(b));n*=-direction;break;case "Admin":n=a.Admin.CompareTo(b.Admin);n*=direction;break;default:n=NameOrder(a,b,-direction);break;}
-    if(n!=0)return n;n=StringComparer.OrdinalIgnoreCase.Compare(Name(a),Name(b));return n!=0?n:StringComparer.OrdinalIgnoreCase.Compare(a.Path??"",b.Path??"");
+    if(n!=0)return n;n=StringComparer.OrdinalIgnoreCase.Compare(Name(a),Name(b));if(n!=0)return n;
+    n=StringComparer.OrdinalIgnoreCase.Compare(a.ProcessName??"",b.ProcessName??"");if(n!=0)return key=="Name"?n*-direction:n;
+    return StringComparer.OrdinalIgnoreCase.Compare(a.Path??"",b.Path??"");
    }
   }
  }

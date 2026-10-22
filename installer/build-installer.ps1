@@ -23,9 +23,18 @@ if($v.ProductVersion -ne $productVersion -or $v.FileVersion -ne ($productVersion
 $fileName='TrayLeaf-v'+$productVersion+'-Windows-x64-Setup.msi'
 $object=Join-Path $build 'TrayLeaf.wixobj';$msi=Join-Path $OutputDir $fileName
 $builtMsi=Join-Path $build $fileName
+$sdk=Join-Path $WixBin 'sdk'
+$dtf=Join-Path $sdk 'Microsoft.Deployment.WindowsInstaller.dll'
+$custom=Join-Path $build 'FolderPicker.dll'
+$native=Join-Path $build 'FolderPicker.CA.dll'
+$csc=Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
+& $csc /nologo /target:library /platform:x64 /optimize+ /utf8output ('/r:'+$dtf) /r:System.Windows.Forms.dll ('/out:'+$custom) (Join-Path $PSScriptRoot 'FolderPicker.cs')
+if($LASTEXITCODE){throw "Folder picker compilation failed: $LASTEXITCODE"}
+& (Join-Path $sdk 'MakeSfxCA.exe') $native (Join-Path $sdk 'x64\sfxca.dll') $custom (Join-Path $PSScriptRoot 'CustomAction.config') $dtf
+if($LASTEXITCODE){throw "Folder picker packaging failed: $LASTEXITCODE"}
 Push-Location $PSScriptRoot
 try {
- & (Join-Path $WixBin 'candle.exe') -nologo -arch x64 "-dPayloadDir=$PayloadDir" -out $object 'TrayLeaf.wxs'
+ & (Join-Path $WixBin 'candle.exe') -nologo -arch x64 "-dPayloadDir=$PayloadDir" "-dFolderPickerCA=$native" -out $object 'TrayLeaf.wxs'
  if($LASTEXITCODE -ne 0){throw "candle failed: $LASTEXITCODE"}
  # ICE91: per-user package. ICE61: intentional same-version upgrade/rebuild support.
  & (Join-Path $WixBin 'light.exe') -nologo -ext WixUIExtension -cultures:zh-cn -sice:ICE91 -sice:ICE61 -pdbout (Join-Path $build 'TrayLeaf.wixpdb') -out $builtMsi $object
