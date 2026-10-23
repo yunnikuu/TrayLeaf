@@ -1,9 +1,9 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-  <Product Id="*" Name="轻羽归栈 TrayLeaf" Language="2052" Version="0.9.2" Manufacturer="TrayLeaf" UpgradeCode="{49F5C6BF-41D9-5CF1-8FFA-917E45CCB2DC}" Codepage="936">
+  <Product Id="*" Name="轻羽归栈 TrayLeaf" Language="2052" Version="0.9.5" Manufacturer="TrayLeaf" UpgradeCode="{49F5C6BF-41D9-5CF1-8FFA-917E45CCB2DC}" Codepage="936">
     <!-- Elevated engine can update rollback-file security on protected/custom drives.
          Do not set ALLUSERS: preserve the existing per-user upgrade context. -->
-    <Package Id="*" InstallerVersion="500" Compressed="yes" InstallPrivileges="elevated" Platform="x64" Description="轻羽归栈 TrayLeaf v0.9.2 安装程序" Comments="Windows 10/11 x64；当前用户安装；安装时请求提升权限以支持覆盖更新。" />
+    <Package Id="*" InstallerVersion="500" Compressed="yes" InstallPrivileges="elevated" Platform="x64" Description="轻羽归栈 TrayLeaf v0.9.5 安装程序" Comments="Windows 10/11 x64；当前用户安装；安装时请求提升权限以支持覆盖更新。" />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
     <MajorUpgrade DowngradeErrorMessage="已安装更高版本的 TrayLeaf，请先卸载较新版本。" Schedule="afterInstallInitialize" AllowSameVersionUpgrades="yes" />
     <Property Id="ARPPRODUCTICON" Value="TrayLeafIcon" />
@@ -101,7 +101,22 @@
       <TextStyle Id="WixUI_Font_Title" FaceName="Microsoft YaHei" Size="10" Bold="yes" />
       <Property Id="DefaultUIFont" Value="WixUI_Font_Normal" />
       <Property Id="WixUI_Mode" Value="InstallDir" />
-      <DialogRef Id="DiskCostDlg" /><DialogRef Id="ErrorDlg" /><DialogRef Id="FatalError" /><DialogRef Id="FilesInUse" /><DialogRef Id="MsiRMFilesInUse" /><DialogRef Id="PrepareDlg" /><DialogRef Id="ProgressDlg" /><DialogRef Id="ResumeDlg" /><DialogRef Id="UserExit" />
+      <DialogRef Id="DiskCostDlg" /><DialogRef Id="ErrorDlg" /><DialogRef Id="FatalError" /><DialogRef Id="FilesInUse" /><DialogRef Id="MsiRMFilesInUse" /><DialogRef Id="PrepareDlg" /><DialogRef Id="ResumeDlg" /><DialogRef Id="UserExit" />
+      <InstallUISequence><Show Dialog="ProgressDlg" Before="ExecuteAction">0</Show><Show Dialog="TrayLeafProgressDlg" Before="ExecuteAction">1</Show></InstallUISequence>
+      <Dialog Id="TrayLeafProgressDlg" Width="370" Height="270" Title="[ProductName] 安装向导" Modeless="yes">
+        <Control Id="Banner" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="yes" Text="WixUI_Bmp_Banner"/>
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="300" Height="18" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}正在安装 [ProductName]"/>
+        <Control Id="Description" Type="Text" X="20" Y="65" Width="330" Height="30" NoPrefix="yes" Text="安装过程中将更新程序与快捷方式，请稍候"/>
+        <Control Id="StatusLabel" Type="Text" X="20" Y="103" Width="35" Height="18" NoPrefix="yes" Text="状态："/>
+        <Control Id="ActionText" Type="Text" X="58" Y="103" Width="292" Height="26" NoPrefix="yes" Text="正在准备安装，请稍候…"><Subscribe Event="ActionText" Attribute="Text"/></Control>
+        <Control Id="ProgressBar" Type="ProgressBar" X="20" Y="137" Width="330" Height="12" ProgressBlocks="yes"><Subscribe Event="SetProgress" Attribute="Progress"/></Control>
+        <Control Id="PreparationNote" Type="Text" X="20" Y="160" Width="330" Height="35" NoPrefix="yes" Text="开始时 Windows 需要检查安装权限和已有版本；进度会在准备完成后更新"/>
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0"/>
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0"/>
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Disabled="yes" Text="上一步"/>
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Disabled="yes" Text="下一步"/>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Default="yes" Cancel="yes" Text="取消"><Publish Event="SpawnDialog" Value="CancelDlg">1</Publish></Control>
+      </Dialog>
       <!-- Own the picker so normalization and path validation happen before it closes. -->
       <Dialog Id="TrayLeafInstallDirDlg" Width="370" Height="270" Title="[ProductName] 安装向导">
         <Control Id="Banner" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="yes" Text="WixUI_Bmp_Banner" />

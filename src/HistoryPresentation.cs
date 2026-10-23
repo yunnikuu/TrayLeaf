@@ -8,15 +8,18 @@ using System.Windows.Controls;
 using System.Windows.Data;
 namespace TrayLeaf {
  internal static class HistoryPresentation {
+  sealed class SortState {internal DataGridColumn Active;internal readonly Dictionary<DataGridColumn,ListSortDirection> Directions=new Dictionary<DataGridColumn,ListSortDirection>();}
+  static readonly System.Runtime.CompilerServices.ConditionalWeakTable<DataGrid,SortState> states=new System.Runtime.CompilerServices.ConditionalWeakTable<DataGrid,SortState>();
+  internal static void Reset(DataGrid grid){var state=states.GetOrCreateValue(grid);state.Active=null;state.Directions.Clear();foreach(var column in grid.Columns)column.SortDirection=column.SortMemberPath=="Name"?(ListSortDirection?)ListSortDirection.Descending:null;ApplyOrder(grid);}
   internal static void Configure(DataGrid grid){
    var name=grid.Columns.FirstOrDefault(c=>c.SortMemberPath=="Name");if(name!=null)name.SortDirection=ListSortDirection.Descending;
-   DataGridColumn active=null;var directions=new Dictionary<DataGridColumn,ListSortDirection>();
+   var state=states.GetOrCreateValue(grid);var directions=state.Directions;
    grid.Sorting+=delegate(object sender,DataGridSortingEventArgs e){
     if(String.IsNullOrEmpty(e.Column.SortMemberPath))return;
     e.Handled=true;ListSortDirection direction;
-    if(active==e.Column)direction=e.Column.SortDirection==ListSortDirection.Ascending?ListSortDirection.Descending:ListSortDirection.Ascending;
+    if(state.Active==e.Column)direction=e.Column.SortDirection==ListSortDirection.Ascending?ListSortDirection.Descending:ListSortDirection.Ascending;
     else if(!directions.TryGetValue(e.Column,out direction))direction=e.Column.SortDirection??ListSortDirection.Ascending;
-    directions[e.Column]=direction;active=e.Column;
+    directions[e.Column]=direction;state.Active=e.Column;
     // An explicit header sort takes precedence over temporary history/close pins.
     foreach(var row in grid.Items.OfType<AppRow>()){row.HistoryPriority=0;row.ClosePriority=0;}
     foreach(var column in grid.Columns)column.SortDirection=null;e.Column.SortDirection=direction;ApplyOrder(grid);

@@ -10,6 +10,11 @@ namespace TrayLeaf {
   public string Label {get;set;}
  }
  public static class Appearance {
+  // Local heading/caption sizes share the same scale as inherited body text.
+  public static void ConfigureTypography(System.Windows.Window window){
+   Action apply=delegate{double scale=window.FontSize/13.0;for(int size=8;size<=48;size++)window.Resources["FontSize"+size]=size*scale;};
+   apply();System.ComponentModel.DependencyPropertyDescriptor.FromProperty(System.Windows.Controls.Control.FontSizeProperty,typeof(System.Windows.Window)).AddValueChanged(window,delegate{apply();});
+  }
   public const string DefaultFont="Microsoft YaHei";
   // Does not enumerate the installed-font catalog at startup; only resolve the saved family.
   public static FontFamily Resolve(string source) {
