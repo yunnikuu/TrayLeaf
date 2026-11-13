@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
@@ -23,7 +23,7 @@ class Version095Tests {
   string fixture=Path.Combine(work,"fixture.db");if(File.Exists(fixture))File.Delete(fixture);
   using(var db=new Database(fixture)){var c=new Controller(app,shell,db,true);c.Start(null);shell.Show();System.Threading.SynchronizationContext.SetSynchronizationContext(new System.Windows.Threading.DispatcherSynchronizationContext(shell.Dispatcher));shell.UpdateLayout();
    var grid=(DataGrid)shell.FindName("ProcessGrid");var history=(ComboBox)shell.FindName("CloseHistoryCombo");
-   Check("version-095",typeof(Entry).Assembly.GetName().Version.ToString()=="0.9.5.0");
+   Check("assembly-version-consistency",typeof(Entry).Assembly.GetName().Version.ToString()==((AssemblyInformationalVersionAttribute)Attribute.GetCustomAttribute(typeof(Entry).Assembly,typeof(AssemblyInformationalVersionAttribute))).InformationalVersion+".0");
    Check("history-half-width",history.ActualWidth>120&&history.ActualWidth<grid.ActualWidth*.61);
    Check("selection-buttons-below-history",((Button)shell.FindName("SelectAllButton")).TranslatePoint(new Point(),shell).Y>history.TranslatePoint(new Point(),shell).Y);
    Check("automatic-row-height",Double.IsNaN(grid.RowHeight));

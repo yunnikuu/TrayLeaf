@@ -10,8 +10,9 @@ namespace TrayLeaf {
  public sealed class ProgramSelectionDialog:Window {
   readonly List<AppRow> choices;readonly DataGrid grid;readonly TextBox search;readonly TextBlock count;readonly Button confirm;
   public List<AppRow> Chosen{get{return choices.Where(x=>x.Selected).ToList();}}
-  public ProgramSelectionDialog(Window owner,List<AppRow> rows,bool restore){
-   Title=restore?"管理已隐藏程序":"隐藏程序";Owner=owner;Width=760;Height=550;MinWidth=620;MinHeight=440;WindowStartupLocation=WindowStartupLocation.CenterOwner;ShowInTaskbar=false;Background=(Brush)owner.FindResource("Canvas");Foreground=owner.Foreground;FontFamily=owner.FontFamily;FontSize=13;UseLayoutRounding=true;SnapsToDevicePixels=true;Resources=owner.Resources;
+  public ProgramSelectionDialog(Window owner,List<AppRow> rows,bool restore):this(owner,rows,restore,false){}
+  public ProgramSelectionDialog(Window owner,List<AppRow> rows,bool restore,bool custom){
+   Title=restore?"管理已隐藏程序":"隐藏程序";Owner=owner;Width=760;Height=550;MinWidth=620;MinHeight=440;WindowStartupLocation=WindowStartupLocation.CenterOwner;ShowInTaskbar=false;Background=(Brush)owner.FindResource("Canvas");Foreground=owner.Foreground;FontFamily=owner.FontFamily;FontSize=owner.FontSize;UseLayoutRounding=true;SnapsToDevicePixels=true;Resources=owner.Resources;
    choices=rows.Select(r=>new AppRow{Name=r.Name,Path=r.Path,ProcessName=r.ProcessName,Icon=r.Icon,Selected=false}).ToList();
    foreach(var row in choices)if(row.Icon==null)ProgramPresentation.LoadIcon(row);
    const string xaml=@"<Grid xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>
@@ -23,9 +24,9 @@ namespace TrayLeaf {
    </Grid>";
    var panel=(Grid)XamlReader.Parse(xaml);Content=new Border{Background=Background,Padding=new Thickness(24),Child=panel};NameScope.SetNameScope(this,new NameScope());
    foreach(string name in new[]{"Programs","Filter","ChooseVisible","ChooseNone","Confirm","Cancel","Count"})RegisterName(name,panel.FindName(name));
-   ((TextBlock)panel.FindName("Heading")).Text=restore?"让程序重新显示":"整理你的程序列表";
-   ((TextBlock)panel.FindName("Description")).Text=restore?"勾选后恢复到识别列表，不会启动程序，也不会自动加入关闭选择":"选择不再显示的程序，不会关闭或卸载应用；刷新与重启后保留，可在设置中恢复显示";
-   grid=(DataGrid)panel.FindName("Programs");search=(TextBox)panel.FindName("Filter");count=(TextBlock)panel.FindName("Count");confirm=(Button)panel.FindName("Confirm");confirm.Content=restore?"恢复显示":"隐藏所选";grid.ItemsSource=choices;
+   ((TextBlock)panel.FindName("Heading")).Text=custom?"管理自定义程序":restore?"让程序重新显示":"整理你的程序列表";
+   ((TextBlock)panel.FindName("Description")).Text=custom?"移除只删除手动管理记录，不会关闭、卸载程序，也不删除历史和配置；运行中的程序仍可能被自动识别":restore?"勾选后恢复到识别列表，不会启动程序，也不会自动加入关闭选择":"选择不再显示的程序，不会关闭或卸载应用；刷新与重启后保留，可在设置中恢复显示";
+   grid=(DataGrid)panel.FindName("Programs");search=(TextBox)panel.FindName("Filter");count=(TextBlock)panel.FindName("Count");confirm=(Button)panel.FindName("Confirm");confirm.Content=custom?"移除程序":restore?"恢复显示":"隐藏所选";grid.ItemsSource=choices;
    Action update=delegate{count.Text="已选 "+Chosen.Count+" / "+choices.Count+" 个程序";confirm.IsEnabled=Chosen.Count>0;};
    foreach(var r in choices)r.PropertyChanged+=delegate{update();};
    search.TextChanged+=delegate{((TextBlock)panel.FindName("Placeholder")).Visibility=search.Text.Length==0?Visibility.Visible:Visibility.Collapsed;CollectionViewSource.GetDefaultView(choices).Filter=o=>Matches((AppRow)o);((TextBlock)panel.FindName("Empty")).Visibility=grid.Items.Count==0?Visibility.Visible:Visibility.Collapsed;};

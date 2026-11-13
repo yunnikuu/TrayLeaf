@@ -37,7 +37,7 @@ namespace TrayLeaf {
     int bootstrap=StartupManager.Bootstrap(args);if(bootstrap>=0)return bootstrap;
     if(!test){try{StartupManager.ReconcileInstalledStartup();}catch{}bool created;mutex=new Mutex(true,"Local\\TrayLeaf."+System.Security.Principal.WindowsIdentity.GetCurrent().User.Value,out created);if(!created){StartupNotice.Show("轻羽归栈已经运行，请从通知区域打开","轻羽归栈");return 0;}}
     var app=new Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};
-    if(database==null)database=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"TrayLeaf","trayleaf.db");
+    if(database==null)database=DataLocation.Resolve(DataLocation.Marker);
     using(var db=new Database(database)) {
      using(var stream=Assembly.GetExecutingAssembly().GetManifestResourceStream("TrayLeaf.MainWindow.xaml")) {
       var window=(Window)XamlReader.Load(stream);app.MainWindow=window;
@@ -96,16 +96,16 @@ namespace TrayLeaf {
    w.SourceInitialized+=delegate{handle=new WindowInteropHelper(w).Handle;source=HwndSource.FromHwnd(handle);source.AddHook(Hook);if(!demo)try{RegisterKeys(closeKey,restoreKey);}catch(Exception ex){Status("快捷键未启用："+ex.Message);w.Dispatcher.BeginInvoke(new Action(delegate{Error(ex);}));}};
    SetupModern();
    SetupCollections();Get<DataGrid>("ProcessGrid").PreviewMouseLeftButtonDown+=delegate(object sender,MouseButtonEventArgs e){var dep=e.OriginalSource as DependencyObject;var row=ItemsControl.ContainerFromElement(Get<DataGrid>("ProcessGrid"),dep) as DataGridRow;var item=row==null?null:row.Item as AppRow;if(item!=null&&item.Antivirus){e.Handled=true;Show();ModernDialog.Confirm(w,"杀毒类软件不支持关闭喵","无法关闭",false);}};
-   Appearance.ConfigureTypography(w);SetupInteraction095();
+   Appearance.ConfigureTypography(w);SetupInteraction095();Setup097();
    TablePresentation.Configure(w,Get<DataGrid>("ProcessGrid"),Get<DataGrid>("RestoreGrid"));
    app.DispatcherUnhandledException+=delegate(object s,DispatcherUnhandledExceptionEventArgs e){e.Handled=true;Error(e.Exception);};
    initializing=false;
    if(demo){FillDemo();w.Show();if(smokePath==null)return;var timer=new DispatcherTimer{Interval=TimeSpan.FromMilliseconds(1000)};timer.Tick+=delegate{timer.Stop();try{w.UpdateLayout();var content=(FrameworkElement)w.Content;var bitmap=new RenderTargetBitmap((int)content.ActualWidth,(int)content.ActualHeight,96,96,PixelFormats.Pbgra32);bitmap.Render(content);var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));using(var f=File.Create(smokePath))encoder.Save(f);}catch(Exception ex){File.WriteAllText(smokePath+".error.txt",ex.ToString());}exiting=true;w.Close();app.Shutdown();};timer.Start();return;}
-   ops.RecoverInterrupted();db.Prune();CreateTray();w.Show();if(Setting("launchHidden",false)||Environment.GetCommandLineArgs().Contains("--startup"))w.Hide();Refresh();ReloadHistory(0);
+   ops.RecoverInterrupted();db.Prune();CreateTray();w.Show();if(Setting("launchHidden",false)||Environment.GetCommandLineArgs().Contains("--startup"))w.Hide();Refresh();ReloadHistory(0);CheckAutoUpdates();
   }
   void Show(){if(!w.IsVisible)w.Show();if(w.WindowState==WindowState.Minimized)w.WindowState=WindowState.Normal;w.Activate();}
   void EnsureFonts(){var combo=Get<ComboBox>("FontFamilyInput");if(combo.ItemsSource!=null)return;combo.ItemsSource=Appearance.InstalledFonts();combo.SelectedValue=w.FontFamily.Source;}
-  void Navigate(int n){if(n==2){EnsureFonts();UpdateHiddenCount();}page=n;
+  void Navigate(int n){if(n==2){EnsureFonts();UpdateHiddenCount();UpdateCustomCount();}page=n;
    Get<Grid>("CurrentPanel").Visibility=n==0?Visibility.Visible:Visibility.Collapsed;
    Get<Grid>("RestorePanel").Visibility=n==1?Visibility.Visible:Visibility.Collapsed;
    Get<Grid>("SettingsHost").Visibility=n==2?Visibility.Visible:Visibility.Collapsed;
@@ -148,7 +148,7 @@ namespace TrayLeaf {
    var latest=current.Where(r=>!String.IsNullOrWhiteSpace(r.Path)).GroupBy(r=>r.Path,StringComparer.OrdinalIgnoreCase).ToDictionary(g=>g.Key,g=>g.Last(),StringComparer.OrdinalIgnoreCase);
    foreach(var row in result.Rows){AppRow old;if(latest.TryGetValue(row.Path??"",out old)){row.Selected=!row.Antivirus&&old.Selected;row.Admin=old.Admin;if(old.Args!=null)row.Args=old.Args;row.ClosePriority=old.ClosePriority;}Wire(row,false);}
    current=result.Rows;
-   scanNote="刷新于 "+DateTime.Now.ToString("HH:mm:ss")+" · 按 EXE 路径分组，同路径全部实例一并关闭";
+   scanNote="刷新于 "+DateTime.Now.ToString("HH:mm:ss")+" · 按程序路径分组，同路径全部实例一并关闭";
    if(result.Candidates>0)scanNote+=" "+result.Candidates+" 个历史托盘候选"+(candidates?"已显示，默认不勾选":"未计入，可在设置中显示");
    if(!String.IsNullOrWhiteSpace(result.Note))scanNote+=" "+result.Note;ApplyHistoryPins();Get<DataGrid>("ProcessGrid").ItemsSource=current;ApplyFilter();Status(scanNote);
   }
@@ -174,7 +174,7 @@ namespace TrayLeaf {
    var rows=db.FilterVisible(current).Where(x=>x.Selected&&!x.Antivirus&&!Policy.IsAntivirus(x.ProcessName,x.Path)&&x.Processes.Count>0).ToList();if(rows.Count==0){Show();Navigate(0);Status("请先勾选正在运行的程序；未关闭任何程序");return;}
    var risks=rows.Where(x=>x.Risk).ToList();
    string riskNotice=risks.Count==0?"":"\n\n包含系统 / 服务进程："+String.Join("、",risks.Select(x=>x.Name))+"\n关闭可能中断服务、导致黑屏、注销或系统崩溃";
-   if(!AskClose("将关闭 "+rows.Count+" 个程序组（相同 EXE 路径的全部实例）\n\n"+String.Join("\n",rows.Take(12).Select(x=>"• "+x.Name))+"\n\n请先保存工作,未保存的数据可能丢失！"+riskNotice+"\n\n恢复只会重新启动程序，不恢复文件、窗口或会话","确认关闭所选程序"))return;
+   if(!AskClose("将关闭 "+rows.Count+" 个程序组（相同程序路径的全部实例）\n\n"+String.Join("\n",rows.Take(12).Select(x=>"• "+x.Name))+"\n\n请先保存工作,未保存的数据可能丢失！"+riskNotice+"\n\n恢复只会重新启动程序，不恢复文件、窗口或会话","确认关闭所选程序"))return;
    if(rows.Any(x=>!x.ArgsKnown)&&!Ask("部分程序的启动参数无法读取；已知路径仍会保存，但重新启动的行为可能与原来不同\n可取消后通过“启动信息”手动补充参数；是否继续？","启动信息不完整"))return;
    var commands=rows.Select(ProgramPresentation.Command).ToList();long batch=ops.Prepare(commands);
    var limiter=new SemaphoreSlim(4);var promptGate=new object();
@@ -199,7 +199,7 @@ namespace TrayLeaf {
    }
   async void HotkeyAction(bool restore){if(busy||demo)return;SetBusy(true);try{if(restore){if(!history.Any(x=>x.ItemStatus=="configured")){var b=db.Query("SELECT batch FROM items WHERE status IN ('closed','launchfailed') ORDER BY batch DESC LIMIT 1");if(b.Count>0)ReloadHistory(Int64.Parse(b[0][0]));}Navigate(1);await RestoreCore();}else{await Scan();await CloseCore();}}catch(Exception ex){Error(ex);}finally{SetBusy(false);}}
   void UpdateHiddenCount(){int count=db.HiddenPrograms().Count;Text("HiddenCountText",count==0?"尚未隐藏程序；隐藏只影响当前列表，不会关闭或卸载程序":"已从当前列表隐藏 "+count+" 个程序；刷新与重启后继续生效，可随时恢复显示");}
-  void Forget(){if(busy)return;var rows=current.Where(x=>x.Selected).ToList();if(rows.Count==0){Status("请先勾选要隐藏的程序");return;}if(!AskOptional("将隐藏 "+rows.Count+" 个程序\n\n"+String.Join("\n",rows.Take(12).Select(x=>"• "+x.Name))+"\n\n隐藏只影响程序列表，不会关闭或卸载应用，可在“设置 → 隐藏程序管理”恢复显示","隐藏所选程序","confirmHide","ConfirmHideInput"))return;db.HidePrograms(rows);foreach(var row in rows)row.Selected=false;current=db.FilterVisible(current);Get<DataGrid>("ProcessGrid").ItemsSource=current;ApplyFilter();UpdateHiddenCount();Status("已隐藏 "+rows.Count+" 个程序；未关闭或卸载应用；可在“设置 → 隐藏程序管理”恢复显示");}
+   void Forget(){HideRows(current.Where(x=>x.Selected));}
   void ManageHidden(){if(busy)return;var rows=db.HiddenPrograms();if(rows.Count==0){Status("没有已隐藏的程序");return;}var dialog=new ProgramSelectionDialog(w,rows,true);if(dialog.ShowDialog()!=true)return;db.RestorePrograms(dialog.Chosen);UpdateHiddenCount();Refresh();Status("已允许 "+dialog.Chosen.Count+" 个程序重新显示；下次识别时加入列表，不会自动勾选或启动");}
   void EditRow(AppRow row,bool past){if(row==null){Status("先单击一行，再编辑启动信息");return;}
    var dialog=new Window{UseLayoutRounding=true,SnapsToDevicePixels=true,Owner=w,Title="启动信息 · "+row.Name,Width=650,Height=390,ResizeMode=ResizeMode.NoResize,WindowStartupLocation=WindowStartupLocation.CenterOwner,Background=new SolidColorBrush(Color.FromRgb(244,247,251)),FontFamily=w.FontFamily,FontSize=13};dialog.Resources=w.Resources;var panel=new StackPanel{Margin=new Thickness(24)};dialog.Content=panel;

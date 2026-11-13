@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$MsiPath)
+﻿param([Parameter(Mandatory=$true)][string]$MsiPath)
 $ErrorActionPreference='Stop'
 $passed=0;$failed=0
 function Check([string]$Name,[bool]$Ok){if($Ok){$script:passed++;Write-Output ('PASS '+$Name)}else{$script:failed++;Write-Output ('FAIL '+$Name)}}
@@ -22,7 +22,7 @@ Check 'typed-folder-normalizers-kept' (@($next|Where-Object {$_[0] -eq 'DoAction
 Check 'next-goes-directly-to-install' (@($next|Where-Object {$_[0] -eq 'EndDialog' -and $_[1] -eq 'Return'}).Count -eq 1 -and @($next|Where-Object {$_[0] -eq 'NewDialog'}).Count -eq 0)
 Check 'three-install-options-kept' (@(Rows 'SELECT `Control` FROM `Control` WHERE `Dialog_`=''TrayLeafInstallDirDlg'' AND `Type`=''CheckBox''' 1).Count -eq 3)
 $props=@(Rows 'SELECT `Property`,`Value` FROM `Property`' 2);$p=@{};foreach($r in $props){$p[$r[0]]=$r[1]}
-Check 'version-092' ($p['ProductVersion'] -eq '0.9.5')
+Check 'version-092' ($p['ProductVersion'] -eq '0.9.7')
 Check 'upgrade-code-stable' ($p['UpgradeCode'] -eq '{49F5C6BF-41D9-5CF1-8FFA-917E45CCB2DC}')
 Check 'remembered-path-search-kept' (@(Rows 'SELECT `Property` FROM `AppSearch` WHERE `Property`=''INSTALLFOLDER''' 1).Count -eq 1)
 Check 'only-three-runtime-payloads' (@(Rows 'SELECT `File` FROM `File`' 1).Count -eq 3)

@@ -29,7 +29,7 @@ namespace TrayLeaf {
    }
    Click("SaveCloseHistoryProfileButton",delegate{var set=Get<ComboBox>("CloseHistoryCombo").SelectedItem as SavedSet;if(set==null){Status("先选择一条关闭历史");return;}SaveProfile("close",false,db.LoadSet(set.Id));});
    Get<ComboBox>("CloseHistoryCombo").SelectionChanged+=delegate{if(loadingCollections||busy)return;Guard(delegate{var set=Get<ComboBox>("CloseHistoryCombo").SelectedItem as SavedSet;if(set!=null)ApplyCloseRows(db.LoadSet(set.Id),"关闭历史");});};
-   ProgramPresentation.AttachMenus(Get<DataGrid>("ProcessGrid"),Status);ProgramPresentation.AttachMenus(Get<DataGrid>("RestoreGrid"),Status);
+   ProgramPresentation.AttachMenus(Get<DataGrid>("ProcessGrid"),Status,row=>HideRows(new[]{row}));ProgramPresentation.AttachMenus(Get<DataGrid>("RestoreGrid"),Status);
    ReloadCollections();
   }
   static void ConfigureProfileSelection(ComboBox combo,Action apply){bool open=false,cancelled=false;
