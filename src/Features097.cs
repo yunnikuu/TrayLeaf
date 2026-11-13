@@ -10,7 +10,7 @@ namespace TrayLeaf {
  public sealed partial class Controller {
   CancellationTokenSource automaticUpdate;bool updateDisposed;
   void Setup097(){
-   Get<ComboBox>("WindowTintInput").SelectedIndex=(int)Number("windowTint",0,0,5);Get<ComboBox>("WindowTintInput").SelectionChanged+=delegate{PreviewAppearance();};
+   Get<ComboBox>("WindowTintInput").SelectedIndex=(int)Number("windowTint",0,0,ThemeManager.Accents.Length-1);Get<ComboBox>("WindowTintInput").SelectionChanged+=delegate{PreviewAppearance();};
    Get<CheckBox>("AutoCheckUpdateInput").IsChecked=Setting("autoCheckUpdates",true);Get<CheckBox>("AutoCheckUpdateInput").Unchecked+=delegate{if(automaticUpdate!=null)automaticUpdate.Cancel();};
    Click("ChangeDataButton",ChangeDataDirectory);Click("ManageCustomButton",ManageCustom);Click("NewVersionBadge",delegate{Navigate(3);if(releaseUrl!=null){Text("UpdateStatus","发现新版本，可前往发布页下载");Get<TextBlock>("UpdateStatus").Visibility=Visibility.Visible;Get<Button>("OpenReleaseButton").Visibility=Visibility.Visible;}});
    ScrollActivity.Attach(Get<ScrollViewer>("SettingsPanel"));ScrollActivity.Attach(Get<DataGrid>("ProcessGrid"));ScrollActivity.Attach(Get<DataGrid>("RestoreGrid"));
@@ -24,6 +24,6 @@ namespace TrayLeaf {
    try{await Task.Run(()=>db.Relocate(directory,marker));Text("DbPathText",db.FilePath);Status("数据目录已更改，历史、配置和设置已迁移；原数据库保留");}finally{SetBusy(false);Get<Button>("ChangeDataButton").IsEnabled=true;Get<Button>("ManageCustomButton").IsEnabled=true;}
   }catch(Exception ex){Error(ex);}}
   async void CheckAutoUpdates(){if(demo||!UpdatePolicy.ShouldCheck(db,DateTime.Now))return;UpdatePolicy.MarkAttempt(db,DateTime.Now);automaticUpdate=new CancellationTokenSource();var token=automaticUpdate.Token;try{string tag=await UpdateService.Latest(token);if(!updateDisposed&&!token.IsCancellationRequested&&Get<CheckBox>("AutoCheckUpdateInput").IsChecked==true)PresentUpdate(tag);}catch{ /* Automatic checks stay quiet on timeout, offline or cancellation. */ }finally{automaticUpdate.Dispose();automaticUpdate=null;}}
-  void PresentUpdate(string tag){if(!UpdateService.IsNewer(tag,"0.9.7"))return;releaseUrl=UpdateService.ProjectUrl+"/releases/tag/"+Uri.EscapeDataString(tag);Get<Button>("NewVersionBadge").Visibility=Visibility.Visible;}
+  void PresentUpdate(string tag){if(!UpdateService.IsNewer(tag,"0.9.8"))return;releaseUrl=UpdateService.ProjectUrl+"/releases/tag/"+Uri.EscapeDataString(tag);Get<Button>("NewVersionBadge").Visibility=Visibility.Visible;}
  }
 }

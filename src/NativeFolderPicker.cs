@@ -7,7 +7,7 @@ namespace TrayLeaf {
  internal static class NativeFolderPicker {
   internal static string Choose(Window owner,string initial){IFileDialog dialog=null;IShellItem folder=null,result=null;IntPtr value=IntPtr.Zero;IntPtr dpi=IntPtr.Zero;bool dpiChanged=false;
    try{try{dpi=SetThreadDpiAwarenessContext(new IntPtr(-4));dpiChanged=dpi!=IntPtr.Zero;}catch(EntryPointNotFoundException){}
-    dialog=(IFileDialog)new FileOpenDialog();dialog.SetOptions(0x20|0x40|0x800|0x8);dialog.SetTitle("选择数据目录");dialog.SetOkButtonLabel("选择此文件夹");if(Directory.Exists(initial)){Guid id=typeof(IShellItem).GUID;if(SHCreateItemFromParsingName(initial,IntPtr.Zero,ref id,out folder)==0)dialog.SetFolder(folder);}
+    dialog=(IFileDialog)new FileOpenDialog();dialog.SetOptions(0x20|0x40|0x800|0x8);dialog.SetTitle(UiLanguage.Text("选择数据目录"));dialog.SetOkButtonLabel(UiLanguage.Text("选择此文件夹"));if(Directory.Exists(initial)){Guid id=typeof(IShellItem).GUID;if(SHCreateItemFromParsingName(initial,IntPtr.Zero,ref id,out folder)==0)dialog.SetFolder(folder);}
     int hr=dialog.Show(owner==null?IntPtr.Zero:new WindowInteropHelper(owner).Handle);if(hr==unchecked((int)0x800704C7))return null;if(hr<0)Marshal.ThrowExceptionForHR(hr);dialog.GetResult(out result);result.GetDisplayName(0x80058000,out value);return Marshal.PtrToStringUni(value);
    }finally{if(value!=IntPtr.Zero)Marshal.FreeCoTaskMem(value);if(result!=null)Marshal.FinalReleaseComObject(result);if(folder!=null)Marshal.FinalReleaseComObject(folder);if(dialog!=null)Marshal.FinalReleaseComObject(dialog);if(dpiChanged)SetThreadDpiAwarenessContext(dpi);}
   }

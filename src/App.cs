@@ -68,6 +68,7 @@ namespace TrayLeaf {
   void Status(string text){Text("StatusText",text);}
   public Controller(Application application,Window window,Database database,bool preview){app=application;w=window;db=database;ops=new OperationService(db);demo=preview;}
   public void Start(string smokePath) {
+   UiLanguage.Set(db.Get("uiLanguage","zh-Hans"));UiLanguage.Apply(w);
    WindowSizing.ApplyDefault(w,SystemParameters.WorkArea);
    w.Icon=AppIdentity.WindowIcon;Get<Image>("BrandIcon").Source=AppIdentity.BrandImage;
    w.FontFamily=Appearance.Resolve(db.Get("fontFamily",Appearance.DefaultFont));
@@ -96,7 +97,7 @@ namespace TrayLeaf {
    w.SourceInitialized+=delegate{handle=new WindowInteropHelper(w).Handle;source=HwndSource.FromHwnd(handle);source.AddHook(Hook);if(!demo)try{RegisterKeys(closeKey,restoreKey);}catch(Exception ex){Status("快捷键未启用："+ex.Message);w.Dispatcher.BeginInvoke(new Action(delegate{Error(ex);}));}};
    SetupModern();
    SetupCollections();Get<DataGrid>("ProcessGrid").PreviewMouseLeftButtonDown+=delegate(object sender,MouseButtonEventArgs e){var dep=e.OriginalSource as DependencyObject;var row=ItemsControl.ContainerFromElement(Get<DataGrid>("ProcessGrid"),dep) as DataGridRow;var item=row==null?null:row.Item as AppRow;if(item!=null&&item.Antivirus){e.Handled=true;Show();ModernDialog.Confirm(w,"杀毒类软件不支持关闭喵","无法关闭",false);}};
-   Appearance.ConfigureTypography(w);SetupInteraction095();Setup097();
+   Appearance.ConfigureTypography(w);SetupInteraction095();Setup097();Setup098();
    TablePresentation.Configure(w,Get<DataGrid>("ProcessGrid"),Get<DataGrid>("RestoreGrid"));
    app.DispatcherUnhandledException+=delegate(object s,DispatcherUnhandledExceptionEventArgs e){e.Handled=true;Error(e.Exception);};
    initializing=false;
@@ -116,10 +117,10 @@ namespace TrayLeaf {
   ContextMenu trayMenu;
   void CreateTray(){
    trayIcon=AppIdentity.CreateTrayIcon();
-   tray=new Forms.NotifyIcon{Icon=trayIcon,Text="轻羽归栈 · 后台暂时休息",Visible=true};
+   tray=new Forms.NotifyIcon{Icon=trayIcon,Text=UiLanguage.Text("轻羽归栈 · 后台暂时休息"),Visible=true};
    trayMenu=new ContextMenu{Resources=w.Resources,Placement=System.Windows.Controls.Primitives.PlacementMode.MousePoint};
    AddTrayMenu("打开轻羽归栈",Show);AddTrayMenu("关闭所选程序",delegate{HotkeyAction(false);});AddTrayMenu("恢复所选程序",delegate{HotkeyAction(true);});
-   AddTrayMenu("设置",delegate{Show();Navigate(2);});AddTrayMenu("关于",delegate{Show();Navigate(3);});AddTrayMenu("退出程序",Exit);
+   AddTrayMenu("设置",delegate{Show();Navigate(2);});AddTrayMenu("关于",delegate{Show();Navigate(3);});AddTrayMenu("退出程序",Exit);UiLanguage.Apply(trayMenu);
    tray.MouseUp+=delegate(object sender,Forms.MouseEventArgs e){if(e.Button==Forms.MouseButtons.Right)w.Dispatcher.BeginInvoke(new Action(delegate{Native.SetForegroundWindow(handle);trayMenu.IsOpen=true;}));};
    tray.DoubleClick+=delegate{w.Dispatcher.BeginInvoke(new Action(Show));};
    SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(w.Dispatcher));
@@ -209,7 +210,7 @@ namespace TrayLeaf {
    admin.Style=(Style)w.FindResource("Switch");Chrome.Decorate(dialog,false);var save=new Button{Content="保存启动信息",HorizontalAlignment=HorizontalAlignment.Right,Padding=new Thickness(14,8,14,8)};save.Click+=delegate{row.Args=arguments.Text;row.Admin=admin.IsChecked==true;row.ArgsKnown=true;dialog.DialogResult=true;};panel.Children.Add(save);dialog.ShowDialog();
   }
   void PickWindow(){if(busy||demo)return;SetBusy(true);pickReleased=false;w.Hide();tray.Text="轻羽归栈 · 单击目标窗口 / Esc 取消";picker=new DispatcherTimer{Interval=TimeSpan.FromMilliseconds(35)};DateTime end=DateTime.UtcNow.AddSeconds(30);picker.Tick+=async delegate{bool down=(Native.GetAsyncKeyState(1)&0x8000)!=0;if((Native.GetAsyncKeyState(27)&0x8000)!=0||DateTime.UtcNow>end){EndPick();Status("窗口定位已取消");return;}if(!down){pickReleased=true;return;}if(!pickReleased)return;Native.POINT point;Native.GetCursorPos(out point);IntPtr window=Native.GetAncestor(Native.WindowFromPoint(point),2);int pid=(int)Native.Pid(window);EndPick();try{SetBusy(true);var scan=await Task.Run(()=>scanPrograms(true,false,new string[0]));var row=scan.Rows.FirstOrDefault(r=>r.Processes.Any(p=>p.Pid==pid));if(row==null||String.IsNullOrEmpty(row.Path))throw new IOException("无法定位该窗口的可执行路径；它可能是桌面、系统界面或受保护进程");await FocusExistingProgram(row);}catch(Exception ex){Error(ex);}finally{SetBusy(false);}};picker.Start();}
-  void EndPick(){picker.Stop();tray.Text="轻羽归栈 · 后台暂时休息";Show();SetBusy(false);}
+  void EndPick(){picker.Stop();tray.Text=UiLanguage.Text("轻羽归栈 · 后台暂时休息");Show();SetBusy(false);}
   void UpdateKeys(){Text("CloseHotkeyText",closeKey.ToString());Text("RestoreHotkeyText",restoreKey.ToString()+" · 快捷键处理最近一个含待恢复项的批次");}
   void RegisterKeys(HotkeySpec close,HotkeySpec restore){Native.UnregisterHotKey(handle,1);Native.UnregisterHotKey(handle,2);if(close.Key!=0&&!Native.RegisterHotKey(handle,1,close.Mods|0x4000,close.Key))throw new Win32Exception(System.Runtime.InteropServices.Marshal.GetLastWin32Error(),"关闭快捷键注册失败；可能已被其他程序占用");if(restore.Key!=0&&restore.Code!=close.Code&&!Native.RegisterHotKey(handle,2,restore.Mods|0x4000,restore.Key)){Native.UnregisterHotKey(handle,1);throw new Win32Exception(System.Runtime.InteropServices.Marshal.GetLastWin32Error(),"恢复快捷键注册失败；可能已被其他程序占用");}}
   IntPtr Hook(IntPtr hwnd,int msg,IntPtr wp,IntPtr lp,ref bool handled){if(msg==0x312){handled=true;if(Get<TextBox>("CloseHotkeyInput").IsKeyboardFocused||Get<TextBox>("RestoreHotkeyInput").IsKeyboardFocused||busy)return IntPtr.Zero;Guard(delegate{bool restore=wp.ToInt32()==2;if(closeKey.Code==restoreKey.Code)restore=Policy.SharedAction(history.Any(x=>x.ItemStatus=="configured"&&x.Selected)||db.Query("SELECT id FROM items WHERE status IN ('closed','launchfailed') LIMIT 1").Count>0)=="restore";HotkeyAction(restore);});}return IntPtr.Zero;}

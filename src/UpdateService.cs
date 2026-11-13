@@ -17,7 +17,7 @@ namespace TrayLeaf {
   internal static Task<string> Latest(){return Latest(new Uri("https://api.github.com/repos/yunnikuu/TrayLeaf/releases/latest"),10000,CancellationToken.None);}
   internal static Task<string> Latest(CancellationToken token){return Latest(new Uri("https://api.github.com/repos/yunnikuu/TrayLeaf/releases/latest"),10000,token);}
   internal static async Task<string> Latest(Uri uri,int timeout,CancellationToken token){
-   token.ThrowIfCancellationRequested();ServicePointManager.SecurityProtocol|=SecurityProtocolType.Tls12;var request=(HttpWebRequest)WebRequest.Create(uri);request.UserAgent="TrayLeaf/0.9.7";request.Accept="application/vnd.github+json";request.Timeout=timeout;request.ReadWriteTimeout=timeout;
+   token.ThrowIfCancellationRequested();ServicePointManager.SecurityProtocol|=SecurityProtocolType.Tls12;var request=(HttpWebRequest)WebRequest.Create(uri);request.UserAgent="TrayLeaf/0.9.8";request.Accept="application/vnd.github+json";request.Timeout=timeout;request.ReadWriteTimeout=timeout;
    using(var delayCancellation=CancellationTokenSource.CreateLinkedTokenSource(token))using(token.Register(request.Abort)){
     var fetch=Fetch(request);var delay=Task.Delay(timeout,delayCancellation.Token);var winner=await Task.WhenAny(fetch,delay);
     if(winner!=fetch){request.Abort();ObserveFailure(fetch);token.ThrowIfCancellationRequested();throw new WebException("检查更新超时",WebExceptionStatus.Timeout);}

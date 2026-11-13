@@ -1,22 +1,36 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-  <Product Id="*" Name="轻羽归栈 TrayLeaf" Language="2052" Version="0.9.7" Manufacturer="TrayLeaf" UpgradeCode="{49F5C6BF-41D9-5CF1-8FFA-917E45CCB2DC}" Codepage="936">
+  <Product Id="*" Name="轻羽归栈 TrayLeaf" Language="2052" Version="0.9.8" Manufacturer="TrayLeaf" UpgradeCode="{49F5C6BF-41D9-5CF1-8FFA-917E45CCB2DC}" Codepage="936">
     <!-- Elevated engine can update rollback-file security on protected/custom drives.
          Do not set ALLUSERS: preserve the existing per-user upgrade context. -->
-    <Package Id="*" InstallerVersion="500" Compressed="yes" InstallPrivileges="elevated" Platform="x64" Description="轻羽归栈 TrayLeaf v0.9.7 安装程序" Comments="Windows 10/11 x64；当前用户安装；安装时请求提升权限以支持覆盖更新。" />
+    <Package Id="*" InstallerVersion="500" Compressed="yes" InstallPrivileges="elevated" Platform="x64" Description="轻羽归栈 TrayLeaf v0.9.8 安装程序" Comments="Windows 10/11 x64；当前用户安装；安装时请求提升权限以支持覆盖更新。" />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
     <MajorUpgrade DowngradeErrorMessage="已安装更高版本的 TrayLeaf，请先卸载较新版本。" Schedule="afterInstallInitialize" AllowSameVersionUpgrades="yes" />
     <Property Id="ARPPRODUCTICON" Value="TrayLeafIcon" />
     <Property Id="ARPNOMODIFY" Value="1" />
+    <!-- A rebuild uses a fresh ProductCode plus AllowSameVersionUpgrades above.
+         Re-running the exact same MSI must reinstall, not merely run a no-op maintenance pass.
+         Execute sequence only: a UI uninstall choice must not inherit REINSTALL=ALL. -->
+    <SetProperty Id="REINSTALLMODE" Value="amus" Before="CostInitialize" Sequence="execute">Installed AND NOT REMOVE</SetProperty>
+    <SetProperty Id="REINSTALL" Value="ALL" Before="CostInitialize" Sequence="execute">Installed AND NOT REMOVE AND NOT REINSTALL</SetProperty>
     <SetProperty Id="ARPINSTALLLOCATION" Value="[INSTALLFOLDER]" After="CostFinalize" />
     <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable" />
     <Property Id="REBOOT" Value="ReallySuppress" />
+    <!-- Skip the machine-wide restore-point preparation only. MSI transaction rollback,
+         normal disk-space costing and real progress notifications stay enabled. -->
+    <Property Id="MSIFASTINSTALL" Value="1" />
+    <!-- Action/error timing diagnostics only; no per-line flush or global logging policy. -->
+    <Property Id="MsiLogging" Value="iwea" />
     <Property Id="DESKTOP_SHORTCUT" Value="1" Secure="yes"><RegistrySearch Id="PreviousDesktopChoice" Root="HKCU" Key="Software\TrayLeaf\Installer" Name="DesktopChoice" Type="raw" Win64="yes" /></Property>
     <Property Id="STARTMENU_SHORTCUT" Value="1" Secure="yes"><RegistrySearch Id="PreviousMenuChoice" Root="HKCU" Key="Software\TrayLeaf\Installer" Name="MenuChoice" Type="raw" Win64="yes" /></Property>
     <Property Id="AUTO_START" Secure="yes"><RegistrySearch Id="PreviousStartupChoice" Root="HKCU" Key="Software\TrayLeaf\Preferences" Name="AutoStart" Type="raw" Win64="yes" /></Property>
     <!-- Remember a custom destination during maintenance/uninstall as well as install. -->
     <Property Id="INSTALLFOLDER" Secure="yes">
       <RegistrySearch Id="SavedInstallFolder" Root="HKCU" Key="Software\TrayLeaf\Installer" Name="InstallPath" Type="raw" Win64="yes" />
+    </Property>
+    <Property Id="TRAYLEAF_CLOSE_RUNNING" Secure="yes" />
+    <Property Id="TRAYLEAF_PREVIOUS_FOLDER" Secure="yes">
+      <RegistrySearch Id="PreviousInstallFolderForClose" Root="HKCU" Key="Software\TrayLeaf\Installer" Name="InstallPath" Type="raw" Win64="yes" />
     </Property>
     <Property Id="NETFRAMEWORK48" Secure="yes">
       <RegistrySearch Id="Net48" Root="HKLM" Key="SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" Name="Release" Type="raw" Win64="yes" />
@@ -74,14 +88,20 @@
         </Component>
       </Directory>
     </Directory>
-    <!-- Configure startup only after commit; UAC consent is needed only for the highest-privilege task. A cancelled consent leaves the ordinary Run entry available. -->
-    <CustomAction Id="ConfigureStartup" FileKey="AppExe" ExeCommand="--configure-startup &quot;[AUTO_START]&quot;" Execute="immediate" Return="ignore" Impersonate="yes" />
+    <!-- Launch startup reconciliation only after commit, without waiting for the child.
+         Return="ignore" is synchronous: scheduler/UAC waits used to keep this UI open.
+         The MSI-owned Run entry is already committed and remains the safe fallback. -->
+    <CustomAction Id="ConfigureStartup" FileKey="AppExe" ExeCommand="--configure-startup &quot;[AUTO_START]&quot;" Execute="immediate" Return="asyncNoWait" Impersonate="yes" />
     <CustomAction Id="RemoveStartup" FileKey="AppExe" ExeCommand="--remove-startup" Execute="immediate" Return="ignore" Impersonate="yes" />
     <CustomAction Id="AppendProductFolderWithSlash" Property="INSTALLFOLDER" Value="[INSTALLFOLDER]TrayLeaf\" />
     <CustomAction Id="AppendProductFolder" Property="INSTALLFOLDER" Value="[INSTALLFOLDER]\TrayLeaf\" />
     <Binary Id="FolderPickerBinary" SourceFile="$(var.FolderPickerCA)" />
+    <Binary Id="ShutdownHelperBinary" SourceFile="$(var.ShutdownHelper)" />
+    <Binary Id="ProcessCloserBinary" SourceFile="$(var.ProcessCloser)" />
+    <CustomAction Id="CloseTrayLeafForInstall" BinaryKey="ProcessCloserBinary" DllEntry="CloseTrayLeafForInstall" Execute="immediate" Return="check" />
     <CustomAction Id="BrowseInstallFolder" BinaryKey="FolderPickerBinary" DllEntry="BrowseInstallFolder" Execute="immediate" Return="check" />
     <InstallExecuteSequence>
+      <Custom Action="CloseTrayLeafForInstall" Before="InstallValidate">NOT REMOVE AND NOT UPGRADINGPRODUCTCODE</Custom>
       <Custom Action="AppendProductFolderWithSlash" Before="AppendProductFolder"><![CDATA[NOT Installed AND NOT REMOVE AND INSTALLFOLDER AND INSTALLFOLDER ~>> "\" AND NOT (INSTALLFOLDER ~>> "\TrayLeaf" OR INSTALLFOLDER ~>> "\TrayLeaf\")]]></Custom>
       <Custom Action="AppendProductFolder" Before="CostFinalize"><![CDATA[NOT Installed AND NOT REMOVE AND INSTALLFOLDER AND NOT (INSTALLFOLDER ~>> "\" OR INSTALLFOLDER ~>> "\TrayLeaf")]]></Custom>
       <Custom Action="RemoveStartup" Before="RemoveFiles">Installed AND REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE</Custom>
@@ -95,6 +115,44 @@
     <WixVariable Id="WixUIDialogBmp" Value="dialog.bmp" />
     <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
     <UI Id="TrayLeafUI">
+      <ProgressText Action="CloseTrayLeafForInstall">Closing running TrayLeaf before validation...</ProgressText>
+      <ProgressText Action="SetREINSTALLMODE">Preparing file replacement...</ProgressText>
+      <ProgressText Action="SetREINSTALL">Preparing same-version overwrite...</ProgressText>
+      <ProgressText Action="INSTALL">Installing TrayLeaf...</ProgressText>
+      <ProgressText Action="AppSearch">Checking installation settings...</ProgressText>
+      <ProgressText Action="CostInitialize">Preparing disk space checks...</ProgressText>
+      <ProgressText Action="FileCost">Checking installation files...</ProgressText>
+      <ProgressText Action="CostFinalize">Checking available disk space...</ProgressText>
+      <ProgressText Action="InstallValidate">Checking files in use and installation requirements...</ProgressText>
+      <ProgressText Action="InstallInitialize">Starting installation transaction...</ProgressText>
+      <ProgressText Action="InstallFiles">Copying application files...</ProgressText>
+      <ProgressText Action="InstallFinalize">Committing installation changes...</ProgressText>
+      <ProgressText Action="CreateShortcuts">Creating shortcuts...</ProgressText>
+      <ProgressText Action="PublishFeatures">Saving installed features...</ProgressText>
+      <ProgressText Action="PublishProduct">Saving installation information...</ProgressText>
+      <ProgressText Action="AppendProductFolderWithSlash">Preparing destination folder...</ProgressText>
+      <ProgressText Action="AppendProductFolder">Preparing destination folder...</ProgressText>
+      <ProgressText Action="SetARPINSTALLLOCATION">Saving destination folder...</ProgressText>
+      <ProgressText Action="ConfigureStartup">Starting background startup configuration...</ProgressText>
+      <ProgressText Action="RemoveStartup">Removing startup configuration...</ProgressText>
+      <ProgressText Action="FindRelatedProducts">Checking existing installations...</ProgressText>
+      <ProgressText Action="LaunchConditions">Checking system requirements...</ProgressText>
+      <ProgressText Action="ValidateProductID">Validating installation package...</ProgressText>
+      <ProgressText Action="MigrateFeatureStates">Loading previous installation options...</ProgressText>
+      <ProgressText Action="ProcessComponents">Updating installed components...</ProgressText>
+      <ProgressText Action="UnpublishFeatures">Removing previous feature information...</ProgressText>
+      <ProgressText Action="RemoveRegistryValues">Removing previous settings...</ProgressText>
+      <ProgressText Action="RemoveShortcuts">Removing previous shortcuts...</ProgressText>
+      <ProgressText Action="RemoveFiles">Removing previous application files...</ProgressText>
+      <ProgressText Action="WriteRegistryValues">Saving application settings...</ProgressText>
+      <ProgressText Action="RegisterUser">Registering installation owner...</ProgressText>
+      <ProgressText Action="RegisterProduct">Registering application...</ProgressText>
+      <ProgressText Action="RemoveExistingProducts">Removing the previous version...</ProgressText>
+      <ProgressText Action="ExecuteAction">Starting Windows Installer...</ProgressText>
+      <ProgressText Action="PrepareDlg">Preparing installation...</ProgressText>
+      <ProgressText Action="TrayLeafProgressDlg">Starting installation...</ProgressText>
+      <ProgressText Action="WixUIValidatePath">Validating destination folder...</ProgressText>
+      <ProgressText Action="BrowseInstallFolder">Selecting destination folder...</ProgressText>
       <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Property="REINSTALLMODE" Value="amus" Order="1">1</Publish>
       <TextStyle Id="WixUI_Font_Normal" FaceName="Microsoft YaHei" Size="9" />
       <TextStyle Id="WixUI_Font_Bigger" FaceName="Microsoft YaHei" Size="13" />
@@ -108,7 +166,7 @@
         <Control Id="Title" Type="Text" X="15" Y="6" Width="300" Height="18" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}正在安装 [ProductName]"/>
         <Control Id="Description" Type="Text" X="20" Y="65" Width="330" Height="30" NoPrefix="yes" Text="安装过程中将更新程序与快捷方式，请稍候"/>
         <Control Id="StatusLabel" Type="Text" X="20" Y="103" Width="35" Height="18" NoPrefix="yes" Text="状态："/>
-        <Control Id="ActionText" Type="Text" X="58" Y="103" Width="292" Height="26" NoPrefix="yes" Text="正在准备安装，请稍候…"><Subscribe Event="ActionText" Attribute="Text"/></Control>
+        <Control Id="ActionText" Type="Text" X="58" Y="103" Width="292" Height="26" NoPrefix="yes" Text="Preparing installation..."><Subscribe Event="ActionText" Attribute="Text"/></Control>
         <Control Id="ProgressBar" Type="ProgressBar" X="20" Y="137" Width="330" Height="12" ProgressBlocks="yes"><Subscribe Event="SetProgress" Attribute="Progress"/></Control>
         <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0"/>
         <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0"/>

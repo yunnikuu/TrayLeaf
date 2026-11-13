@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
@@ -54,7 +54,7 @@ namespace TrayLeaf {
    await w.Dispatcher.InvokeAsync(new Action(delegate{grid.ScrollIntoView(row);}),DispatcherPriority.Loaded);return true;
   }
   async void AddFile(){
-   if(busy)return;var dialog=new Microsoft.Win32.OpenFileDialog{Filter="应用程序 (*.exe)|*.exe",CheckFileExists=true};if(dialog.ShowDialog(w)!=true)return;
+   if(busy)return;var dialog=new Microsoft.Win32.OpenFileDialog{Filter=UiLanguage.Text("应用程序 (*.exe)|*.exe"),CheckFileExists=true};if(dialog.ShowDialog(w)!=true)return;
    SetBusy(true);try{string path=Path.GetFullPath(dialog.FileName);var scan=await Task.Run(()=>scanPrograms(true,false,new string[0]));
     var observed=ProgramLookup.Find(scan.Rows,path)??ProgramLookup.Find(current,path);if(await FocusExistingProgram(observed))return;
     db.SaveManaged(path,Path.GetFileNameWithoutExtension(path),"",false,false);db.Set("custom:"+path,"1");db.AllowProgram(new AppRow{Path=path,ProcessName=Path.GetFileName(path)});await Scan();Navigate(0);

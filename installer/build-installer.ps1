@@ -28,13 +28,34 @@ $dtf=Join-Path $sdk 'Microsoft.Deployment.WindowsInstaller.dll'
 $custom=Join-Path $build 'FolderPicker.dll'
 $native=Join-Path $build 'FolderPicker.CA.dll'
 $csc=Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
+# This native pre-validation action must not depend on server-side SfxCA extraction.
+$nativeCloser=Join-Path $build 'InstallerProcessCloser.dll'
+$shutdownHelper=Join-Path $build 'TrayLeafInstallerClose.exe'
+$cpp=Join-Path $PSScriptRoot 'InstallerProcessCloser.cpp'
+$compiler=Get-Command cl.exe -ErrorAction SilentlyContinue
+if(!$compiler){throw 'MSVC C++ x64 build tools are required (run in the x64 developer shell).'}
+if(!$env:INCLUDE){
+ $vsRoot=($compiler.Source -split '\\VC\\')[0]
+ $toolVersion=[regex]::Match($compiler.Source,'MSVC\\(\d+\.\d+)').Groups[1].Value
+ $vcvars=Join-Path $vsRoot 'VC\Auxiliary\Build\vcvarsall.bat'
+ if(!(Test-Path -LiteralPath $vcvars)){throw 'Cannot locate the x64 MSVC environment script.'}
+ & $env:ComSpec /d /c ('call "'+$vcvars+'" amd64 -vcvars_ver='+$toolVersion+' >nul && set') | ForEach-Object {
+  if($_ -match '^([^=]+)=(.*)$'){[Environment]::SetEnvironmentVariable($matches[1],$matches[2],'Process')}
+ }
+ if($LASTEXITCODE){throw 'Could not initialize the x64 compiler environment.'}
+}
+& $compiler.Source /nologo /LD /MT /EHsc /O2 /utf-8 /std:c++14 $cpp ("/Fo"+(Join-Path $build 'InstallerProcessCloser.obj')) /link ("/OUT:"+$nativeCloser) msi.lib advapi32.lib shell32.lib
+if($LASTEXITCODE){throw "Native process action compilation failed: $LASTEXITCODE"}
+& $compiler.Source /nologo /MT /EHsc /O2 /utf-8 /std:c++14 /DTRAYLEAF_HELPER $cpp ("/Fo"+(Join-Path $build 'InstallerCloseHelper.obj')) /link /SUBSYSTEM:WINDOWS ("/OUT:"+$shutdownHelper) msi.lib advapi32.lib shell32.lib
+if($LASTEXITCODE){throw "Shutdown helper compilation failed: $LASTEXITCODE"}
+
 & $csc /nologo /target:library /platform:x64 /optimize+ /utf8output ('/r:'+$dtf) /r:System.Windows.Forms.dll ('/out:'+$custom) (Join-Path $PSScriptRoot 'FolderPicker.cs')
 if($LASTEXITCODE){throw "Folder picker compilation failed: $LASTEXITCODE"}
 & (Join-Path $sdk 'MakeSfxCA.exe') $native (Join-Path $sdk 'x64\sfxca.dll') $custom (Join-Path $PSScriptRoot 'CustomAction.config') $dtf
 if($LASTEXITCODE){throw "Folder picker packaging failed: $LASTEXITCODE"}
 Push-Location $PSScriptRoot
 try {
- & (Join-Path $WixBin 'candle.exe') -nologo -arch x64 "-dPayloadDir=$PayloadDir" "-dFolderPickerCA=$native" -out $object 'TrayLeaf.wxs'
+ & (Join-Path $WixBin 'candle.exe') -nologo -arch x64 "-dPayloadDir=$PayloadDir" "-dFolderPickerCA=$native" "-dProcessCloser=$nativeCloser" "-dShutdownHelper=$shutdownHelper" -out $object 'TrayLeaf.wxs'
  if($LASTEXITCODE -ne 0){throw "candle failed: $LASTEXITCODE"}
  # ICE91: per-user package. ICE61: intentional same-version upgrade/rebuild support.
  & (Join-Path $WixBin 'light.exe') -nologo -ext WixUIExtension -cultures:zh-cn -sice:ICE91 -sice:ICE61 -pdbout (Join-Path $build 'TrayLeaf.wixpdb') -out $builtMsi $object
