@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -22,7 +22,7 @@ namespace TrayLeaf {
   public bool Admin {get{return admin;}set{admin=value;Change("Admin");}}
   public string Args {get{return args;}set{args=value??"";Change("Args");}}
   public string State {get{return state;}set{state=value;Change("State");}}
-  public string Name {get;set;} public string ProcessName {get;set;}public string Path {get;set;} public string Source {get;set;}
+  string name;public string OriginalName;public string Name {get{return name;}set{name=value;Change("Name");}} public string ProcessName {get;set;}public string Path {get;set;} public string Source {get;set;}
   public int ClosePriority {get;set;} public int HistoryPriority {get;set;} internal string HistoryOriginalSource;
    public bool Risk {get;set;}public bool Antivirus {get;set;}public bool CanSelect {get{return !Antivirus;}}public string RiskReason {get;set;} public bool ArgsKnown {get;set;}public double MemoryMB {get;set;}
   public string Memory {get{return MemoryMB>0?MemoryMB.ToString("N0")+" MB":"—";}}
@@ -107,7 +107,7 @@ namespace TrayLeaf {
    args=LaunchArguments(path,args);
    string dir=System.IO.Path.GetDirectoryName(path);
    if(admin){var si=new ProcessStartInfo(path,args??""){UseShellExecute=true,Verb="runas",WorkingDirectory=dir};using(var p=Process.Start(si)){}return;}
-   if(!Elevated){using(var p=Process.Start(new ProcessStartInfo(path,args??""){UseShellExecute=false,WorkingDirectory=dir})){}return;}
+   if(!Elevated){using(var p=Process.Start(new ProcessStartInfo(path,args??""){UseShellExecute=!String.Equals(System.IO.Path.GetExtension(path),".exe",StringComparison.OrdinalIgnoreCase),WorkingDirectory=dir})){}return;}
    Exception failure=null;var t=new Thread(delegate(){object shellWindows=null,desktop=null,application=null;try{shellWindows=Activator.CreateInstance(Type.GetTypeFromCLSID(new Guid("9BA05972-F6A8-11CF-A442-00A0C90A8F39")));dynamic windows=shellWindows;object location=0,root=0;int hwnd;desktop=windows.FindWindowSW(ref location,ref root,8,out hwnd,1);if(desktop==null)throw new InvalidOperationException("未找到标准权限的桌面 Shell");dynamic view=desktop;application=view.Document.Application;dynamic shell=application;shell.ShellExecute(path,args??"",dir,"open",1);}catch(Exception ex){failure=ex;}finally{foreach(object o in new[]{application,desktop,shellWindows})if(o!=null&&Marshal.IsComObject(o))Marshal.ReleaseComObject(o);}});t.IsBackground=true;t.SetApartmentState(ApartmentState.STA);t.Start();if(!t.Join(15000))throw new TimeoutException("桌面 Shell 启动请求超时，请先检查程序是否已启动，避免重复执行");if(failure!=null)throw new InvalidOperationException("普通权限启动失败（未回退为管理员启动）："+failure.Message,failure);
   }
  }

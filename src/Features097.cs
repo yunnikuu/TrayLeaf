@@ -24,6 +24,6 @@ namespace TrayLeaf {
    try{await Task.Run(()=>db.Relocate(directory,marker));Text("DbPathText",db.FilePath);Status("数据目录已更改，历史、配置和设置已迁移；原数据库保留");}finally{SetBusy(false);Get<Button>("ChangeDataButton").IsEnabled=true;Get<Button>("ManageCustomButton").IsEnabled=true;}
   }catch(Exception ex){Error(ex);}}
   async void CheckAutoUpdates(){if(demo||!UpdatePolicy.ShouldCheck(db,DateTime.Now))return;UpdatePolicy.MarkAttempt(db,DateTime.Now);automaticUpdate=new CancellationTokenSource();var token=automaticUpdate.Token;try{string tag=await UpdateService.Latest(token);if(!updateDisposed&&!token.IsCancellationRequested&&Get<CheckBox>("AutoCheckUpdateInput").IsChecked==true)PresentUpdate(tag);}catch{ /* Automatic checks stay quiet on timeout, offline or cancellation. */ }finally{automaticUpdate.Dispose();automaticUpdate=null;}}
-  void PresentUpdate(string tag){if(!UpdateService.IsNewer(tag,"0.9.8"))return;releaseUrl=UpdateService.ProjectUrl+"/releases/tag/"+Uri.EscapeDataString(tag);Get<Button>("NewVersionBadge").Visibility=Visibility.Visible;}
+  void PresentUpdate(string tag){if(downloadButton!=null&&UpdateService.IsNewer(tag,AppIdentity.ReleaseVersion))downloadButton.Visibility=Visibility.Visible;if(!UpdateService.IsNewer(tag,AppIdentity.ReleaseVersion))return;releaseUrl=UpdateService.ProjectUrl+"/releases/tag/"+Uri.EscapeDataString(tag);Get<Button>("NewVersionBadge").Visibility=Visibility.Visible;}
  }
 }

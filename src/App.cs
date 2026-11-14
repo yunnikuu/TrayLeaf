@@ -65,7 +65,7 @@ namespace TrayLeaf {
   bool Ask(string message,string title){Show();return ModernDialog.Confirm(w,message,title,true);}
   bool AskClose(string message,string title){if(!CloseConfirmation.Required(db))return true;Show();bool suppress;bool confirmed=ModernDialog.ConfirmClose(w,message,title,out suppress);CloseConfirmation.Remember(db,confirmed,suppress);Get<CheckBox>("ConfirmCloseInput").IsChecked=CloseConfirmation.Required(db);return confirmed;}
   bool AskOptional(string message,string title,string key,string input){if(!ConfirmationPreference.Required(db,key))return true;Show();bool suppress;bool confirmed=ModernDialog.ConfirmOptional(w,message,title,out suppress);ConfirmationPreference.Remember(db,key,confirmed,suppress);Get<CheckBox>(input).IsChecked=ConfirmationPreference.Required(db,key);return confirmed;}
-  void Status(string text){Text("StatusText",text);}
+  void Status(string text){Text("StatusText",text);Get<Border>("StatusBar").Visibility=page==2||page==3||page==4||String.IsNullOrEmpty(text)?Visibility.Collapsed:Visibility.Visible;}
   public Controller(Application application,Window window,Database database,bool preview){app=application;w=window;db=database;ops=new OperationService(db);demo=preview;}
   public void Start(string smokePath) {
    UiLanguage.Set(db.Get("uiLanguage","zh-Hans"));UiLanguage.Apply(w);
@@ -87,17 +87,17 @@ namespace TrayLeaf {
    Click("CloseButton",delegate{CloseSelected();});Click("RestoreButton",delegate{RestoreSelected();});
    Click("EditButton",delegate{EditRow(Get<DataGrid>("ProcessGrid").SelectedItem as AppRow,false);});Click("EditRestoreButton",delegate{EditRow(Get<DataGrid>("RestoreGrid").SelectedItem as AppRow,true);});
    Click("ForgetButton",Forget);Click("ManageHiddenButton",ManageHidden);Click("ReloadHistoryButton",delegate{ReloadHistory(0);});Click("RefreshRestoreButton",RefreshRestore);
-   Click("SelectRestoreButton",delegate{foreach(var r in history)r.Selected=r.CanRestore;});Click("SaveSettingsButton",SaveSettings);Click("ExitButton",Exit);
+   Click("SelectRestoreButton",delegate{foreach(var r in history)r.Selected=r.CanRestore;});
    Get<TextBox>("Search").TextChanged+=delegate{ApplyFilter();};Get<ComboBox>("ScanMode").SelectionChanged+=delegate{if(!initializing){db.Set("allProcesses",Get<ComboBox>("ScanMode").SelectedIndex==1?"1":"0");Refresh();}};
    Get<ComboBox>("BatchCombo").SelectionChanged+=delegate{if(!loading)Guard(LoadHistory);};
    Get<TextBox>("CloseHotkeyInput").PreviewKeyDown+=delegate(object s,KeyEventArgs e){CaptureKey(s as TextBox,e,true);};
    Get<TextBox>("RestoreHotkeyInput").PreviewKeyDown+=delegate(object s,KeyEventArgs e){CaptureKey(s as TextBox,e,false);};
-   w.Closing+=delegate(object s,CancelEventArgs e){if(!exiting){e.Cancel=true;w.Hide();}};
+   w.Closing+=HandleMainClose;
    w.StateChanged+=delegate{if(!demo&&w.WindowState==WindowState.Minimized&&Setting("minimizeTray",true))w.Hide();};
    w.SourceInitialized+=delegate{handle=new WindowInteropHelper(w).Handle;source=HwndSource.FromHwnd(handle);source.AddHook(Hook);if(!demo)try{RegisterKeys(closeKey,restoreKey);}catch(Exception ex){Status("快捷键未启用："+ex.Message);w.Dispatcher.BeginInvoke(new Action(delegate{Error(ex);}));}};
    SetupModern();
    SetupCollections();Get<DataGrid>("ProcessGrid").PreviewMouseLeftButtonDown+=delegate(object sender,MouseButtonEventArgs e){var dep=e.OriginalSource as DependencyObject;var row=ItemsControl.ContainerFromElement(Get<DataGrid>("ProcessGrid"),dep) as DataGridRow;var item=row==null?null:row.Item as AppRow;if(item!=null&&item.Antivirus){e.Handled=true;Show();ModernDialog.Confirm(w,"杀毒类软件不支持关闭喵","无法关闭",false);}};
-   Appearance.ConfigureTypography(w);SetupInteraction095();Setup097();Setup098();
+   Appearance.ConfigureTypography(w);SetupInteraction095();Setup097();Setup098();Setup100();
    TablePresentation.Configure(w,Get<DataGrid>("ProcessGrid"),Get<DataGrid>("RestoreGrid"));
    app.DispatcherUnhandledException+=delegate(object s,DispatcherUnhandledExceptionEventArgs e){e.Handled=true;Error(e.Exception);};
    initializing=false;
@@ -106,13 +106,13 @@ namespace TrayLeaf {
   }
   void Show(){if(!w.IsVisible)w.Show();if(w.WindowState==WindowState.Minimized)w.WindowState=WindowState.Normal;w.Activate();}
   void EnsureFonts(){var combo=Get<ComboBox>("FontFamilyInput");if(combo.ItemsSource!=null)return;combo.ItemsSource=Appearance.InstalledFonts();combo.SelectedValue=w.FontFamily.Source;}
-  void Navigate(int n){if(n==2){EnsureFonts();UpdateHiddenCount();UpdateCustomCount();}page=n;
+  void Navigate(int n){if(associationPanel!=null)associationPanel.Visibility=n==4?Visibility.Visible:Visibility.Collapsed;if(navAssociation!=null){navAssociation.SetResourceReference(Control.ForegroundProperty,n==4?"Accent":"Muted");navAssociation.SetResourceReference(Control.BorderBrushProperty,n==4?"Accent":"TransparentNavigationBorder");}Get<Border>("StatusBar").Visibility=n==2||n==3||n==4?Visibility.Collapsed:String.IsNullOrEmpty(Get<TextBlock>("StatusText").Text)?Visibility.Collapsed:Visibility.Visible;if(n==2){EnsureFonts();UpdateHiddenCount();UpdateCustomCount();}page=n;
    Get<Grid>("CurrentPanel").Visibility=n==0?Visibility.Visible:Visibility.Collapsed;
    Get<Grid>("RestorePanel").Visibility=n==1?Visibility.Visible:Visibility.Collapsed;
    Get<Grid>("SettingsHost").Visibility=n==2?Visibility.Visible:Visibility.Collapsed;
-   Get<ScrollViewer>("AboutPanel").Visibility=n==3?Visibility.Visible:Visibility.Collapsed;
-   Text("PageTitle",new[]{"给重要的事，留出空间","刚才的后台，随时回来","按你的习惯，轻装运行","关于轻羽归栈"}[n]);
-   Text("PageSubtitle",new[]{"选择暂时休息的应用，结束后按需找回","选择需要开启的应用，参数与权限随记录保存","让工具融入你的桌面与使用习惯","轻一点的后台，自在一点的桌面"}[n]);PaintNavigation();
+   if(aboutHost!=null)aboutHost.Visibility=n==3?Visibility.Visible:Visibility.Collapsed;else Get<ScrollViewer>("AboutPanel").Visibility=n==3?Visibility.Visible:Visibility.Collapsed;
+   Text("PageTitle",new[]{"给重要的事，留出空间","刚才的后台，随时回来","按你的习惯，轻装运行","关于轻羽归栈","关联应用，轻松归栈"}[n]);
+   Text("PageSubtitle",new[]{"选择暂时休息的应用，结束后按需找回","选择需要开启的应用，参数与权限随记录保存","让工具融入你的桌面与使用习惯","轻一点的后台，自在一点的桌面","规则即时生效，恢复时自动替换为关联程序"}[n]);PaintNavigation();if(n==1&&!busy)ApplyPendingRestore();
   }
   ContextMenu trayMenu;
   void CreateTray(){
@@ -126,11 +126,11 @@ namespace TrayLeaf {
    SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(w.Dispatcher));
   }
   void AddTrayMenu(string title,Action action){var item=new MenuItem{Header=title};item.Click+=delegate{Guard(action);};trayMenu.Items.Add(item);}
-  void Exit(){if(busy){Status("请等待当前操作结束后退出");Show();return;}exiting=true;if(picker!=null)picker.Stop();if(handle!=IntPtr.Zero){Native.UnregisterHotKey(handle,1);Native.UnregisterHotKey(handle,2);}if(tray!=null){tray.Visible=false;if(trayMenu!=null)trayMenu.IsOpen=false;tray.Dispose();}if(trayIcon!=null)trayIcon.Dispose();w.Close();app.Shutdown();}
+  void Exit(){if(liveTimer!=null&&liveTimer.IsEnabled)SaveLiveSettings();if(busy){Status("请等待当前操作结束后退出");Show();return;}exiting=true;if(picker!=null)picker.Stop();if(handle!=IntPtr.Zero){Native.UnregisterHotKey(handle,1);Native.UnregisterHotKey(handle,2);}if(tray!=null){tray.Visible=false;if(trayMenu!=null)trayMenu.IsOpen=false;tray.Dispose();}if(trayIcon!=null)trayIcon.Dispose();w.Close();app.Shutdown();}
   void SetBusy(bool value){busy=value;
    // Keep tables, navigation, search and selection interactive; serialize commands that alter the operation's data set.
-   foreach(string name in new[]{"ApplyCloseProfileButton","SaveCloseProfileButton","EditCloseProfileButton","DeleteCloseProfileButton","SaveCloseHistoryProfileButton","ApplyRestoreProfileButton","SaveRestoreProfileButton","EditRestoreProfileButton","DeleteRestoreProfileButton","RefreshButton","AddButton","PickButton","CloseButton","RestoreButton","EditButton","EditRestoreButton","ForgetButton","ManageHiddenButton","SaveSettingsButton","ReloadHistoryButton","RefreshRestoreButton"})Get<Button>(name).IsEnabled=!value;
-   Get<ComboBox>("ScanMode").IsEnabled=!value;Get<ComboBox>("BatchCombo").IsEnabled=!value;foreach(string c in new[]{"CloseHistoryCombo","CloseProfileCombo","RestoreProfileCombo"})Get<ComboBox>(c).IsEnabled=!value;
+   foreach(string name in new[]{"ApplyCloseProfileButton","SaveCloseProfileButton","EditCloseProfileButton","DeleteCloseProfileButton","SaveCloseHistoryProfileButton","ApplyRestoreProfileButton","SaveRestoreProfileButton","EditRestoreProfileButton","DeleteRestoreProfileButton","RefreshButton","AddButton","PickButton","CloseButton","RestoreButton","EditButton","EditRestoreButton","ForgetButton","ManageHiddenButton","ReloadHistoryButton","RefreshRestoreButton"})Get<Button>(name).IsEnabled=!value;
+   Get<ComboBox>("ScanMode").IsEnabled=!value;Get<ComboBox>("BatchCombo").IsEnabled=!value;foreach(string c in new[]{"CloseHistoryCombo","CloseProfileCombo","RestoreProfileCombo"})Get<ComboBox>(c).IsEnabled=!value;if(!value&&rescanAfterSettings)w.Dispatcher.BeginInvoke(new Action(RefreshLiveRecognition));
   }
   async void Refresh(){if(busy||demo)return;SetBusy(true);Status("正在识别程序与启动信息…");try{await Scan();}catch(Exception ex){Error(ex);}finally{SetBusy(false);}}
   internal Func<bool,bool,IEnumerable<string>,ScanResult> scanPrograms=ProcessService.Scan;
@@ -147,18 +147,18 @@ namespace TrayLeaf {
    });
    // Read the latest UI choices after awaiting so edits made during scanning are retained.
    var latest=current.Where(r=>!String.IsNullOrWhiteSpace(r.Path)).GroupBy(r=>r.Path,StringComparer.OrdinalIgnoreCase).ToDictionary(g=>g.Key,g=>g.Last(),StringComparer.OrdinalIgnoreCase);
-   foreach(var row in result.Rows){AppRow old;if(latest.TryGetValue(row.Path??"",out old)){row.Selected=!row.Antivirus&&old.Selected;row.Admin=old.Admin;if(old.Args!=null)row.Args=old.Args;row.ClosePriority=old.ClosePriority;}Wire(row,false);}
+   foreach(var row in result.Rows){db.ApplyName(row);AppRow old;if(latest.TryGetValue(row.Path??"",out old)){row.Selected=!row.Antivirus&&old.Selected;row.Admin=old.Admin;if(old.Args!=null)row.Args=old.Args;row.ClosePriority=old.ClosePriority;}Wire(row,false);}
    current=result.Rows;
    scanNote="刷新于 "+DateTime.Now.ToString("HH:mm:ss")+" · 按程序路径分组，同路径全部实例一并关闭";
    if(result.Candidates>0)scanNote+=" "+result.Candidates+" 个历史托盘候选"+(candidates?"已显示，默认不勾选":"未计入，可在设置中显示");
    if(!String.IsNullOrWhiteSpace(result.Note))scanNote+=" "+result.Note;ApplyHistoryPins();Get<DataGrid>("ProcessGrid").ItemsSource=current;ApplyFilter();Status(scanNote);
   }
-  void LoadIcon(AppRow row){ProgramPresentation.LoadIcon(row);}
+  void LoadIcon(AppRow row){db.ApplyName(row);ProgramPresentation.LoadIcon(row);}
   bool syncingPreferences;
   void Wire(AppRow row,bool past){row.PropertyChanged+=delegate(object sender,PropertyChangedEventArgs e){
    if(syncingPreferences||(e.PropertyName!="Selected"&&e.PropertyName!="Admin"&&e.PropertyName!="Args"))return;
    try{
-    if(past){if(row.ItemStatus=="configured"&&e.PropertyName=="Selected")row.State=row.Selected?"配置 · 将启动":"配置 · 不启动";db.SaveHistoryChoice(row);if(e.PropertyName!="Selected")db.RememberLaunch(row);}
+    if(past){if(row.ItemStatus=="configured"&&e.PropertyName=="Selected")row.State="未运行 / 可启动";db.SaveHistoryChoice(row);if(e.PropertyName!="Selected")db.RememberLaunch(row);}
     else if(!String.IsNullOrEmpty(row.Path)){db.SaveManaged(row.Path,row.Name,row.Args,row.Admin,row.Selected);if(e.PropertyName=="Args")db.Set("args:"+row.Path,"1");}
     if(e.PropertyName!="Selected"){
      syncingPreferences=true;try{foreach(var other in current.Concat(history).Where(x=>!Object.ReferenceEquals(x,row)&&String.Equals(x.Path,row.Path,StringComparison.OrdinalIgnoreCase))){other.Args=row.Args;other.Admin=row.Admin;if(other.ItemId>0)db.SaveHistoryChoice(other);}}finally{syncingPreferences=false;}
@@ -183,7 +183,7 @@ namespace TrayLeaf {
     string result=await Task.Run(()=>ops.Close(command,r=>{lock(promptGate)return (bool)w.Dispatcher.Invoke(new Func<bool>(()=>AskOptional(r.Name+" 属于系统 / 服务进程，退出请求后仍在运行\n强制结束可能中断服务、导致黑屏或系统崩溃，也可能丢失未保存数据；是否仍要强制结束？","确认强制关闭","confirmForce","ConfirmForceInput")));}));
     row.ItemStatus=command.ItemStatus;row.Error=command.Error;row.State=result;if(row.ItemStatus=="closed")row.Running=false;
    }finally{limiter.Release();}}));}finally{limiter.Dispose();}
-   PinClosedRows(rows);CompleteClose(batch,commands.Count(r=>r.ItemStatus=="closed"),rows.Count);
+   db.MapClosedForRestore(commands);RememberLinkedRestore();PinClosedRows(rows);CompleteClose(batch,commands.Count(r=>r.ItemStatus=="closed"),rows.Count);
   }
   void ReloadHistory(long preferred){loading=true;try{var rows=db.Query("SELECT b.id,b.created,COUNT(i.id),SUM(CASE WHEN i.status IN ('closed','launchfailed') THEN 1 ELSE 0 END) FROM batches b LEFT JOIN items i ON b.id=i.batch GROUP BY b.id ORDER BY b.id DESC");var batches=rows.Select(x=>new BatchInfo{Id=Int64.Parse(x[0]),Label=x[1]+"  ·  "+x[2]+" 项"}).ToList();var combo=Get<ComboBox>("BatchCombo");combo.ItemsSource=batches;combo.SelectedItem=batches.FirstOrDefault(x=>x.Id==preferred)??batches.FirstOrDefault();}finally{loading=false;}LoadHistory();}
   void LoadHistory(){var b=Get<ComboBox>("BatchCombo").SelectedItem as BatchInfo;history=b==null?new List<AppRow>():ops.History(b.Id);foreach(var r in history){LoadIcon(r);Wire(r,true);}Get<DataGrid>("RestoreGrid").ItemsSource=history;HistoryPresentation.ApplyOrder(Get<DataGrid>("RestoreGrid"));}
@@ -193,12 +193,12 @@ namespace TrayLeaf {
    async Task RestoreCore(){var rows=history.Where(x=>x.Selected&&x.CanRestore).ToList();if(rows.Count==0){Show();Navigate(1);Status("请在恢复列表中勾选要开启的程序，或刷新状态后重新选择");return;}
     if(rows.Any(x=>x.ItemId==0))ops.PrepareLaunch(rows);
     var commands=rows.Select(ProgramPresentation.Command).ToList();var running=await Task.Run(()=>ProcessService.RunningPaths());
-    for(int index=0;index<rows.Count;index++){var r=rows[index];var command=commands[index];r.State="正在请求启动…";string text=await Task.Run(()=>ops.Restore(command,running));r.ItemStatus=command.ItemStatus;r.Error=command.Error;r.Running=command.Running;r.State=r.ItemStatus=="launched"?"成功发送请求":text;r.Selected=false;}
+    var limiter=new SemaphoreSlim(4);var reserved=new HashSet<string>(StringComparer.OrdinalIgnoreCase);try{await Task.WhenAll(rows.Select(async (r,index)=>{var command=commands[index];if(!reserved.Add(r.Path??"")){r.State="同路径请求已合并";r.Selected=false;return;}r.State="正在请求启动…";await limiter.WaitAsync();try{string text=await Task.Run(()=>ops.Restore(command,new HashSet<string>(running,StringComparer.OrdinalIgnoreCase)));r.ItemStatus=command.ItemStatus;r.Error=command.Error;r.Running=command.Running;r.State=r.ItemStatus=="launched"?"成功发送请求":text;r.Selected=false;}finally{limiter.Release();}}));}finally{limiter.Dispose();}
     Status("已处理启动请求，正在确认程序是否启动…");
     await new LaunchMonitor().VerifyAsync(rows,ops);HistoryPresentation.ApplyOrder(Get<DataGrid>("RestoreGrid"));
-    db.Prune();var failed=rows.Where(r=>r.ItemStatus=="launchfailed"||r.ItemStatus=="uncertain").ToList();int started=rows.Count(r=>r.ItemStatus=="started"),already=rows.Count(r=>r.ItemStatus=="skipped");Status("共计 "+rows.Count+" 个程序，启动成功 "+started+" 个"+(already>0?"，已在运行 "+already+" 个":"")+(failed.Count>0?"；未启动成功："+String.Join("、",failed.Select(r=>r.Name)):"；已完成启动状态检查"));
+    db.Prune();var failed=rows.Where(r=>r.ItemStatus=="launchfailed"||r.ItemStatus=="uncertain").ToList();int sent=rows.Count(r=>r.ItemStatus=="dispatched"),started=rows.Count(r=>r.ItemStatus=="started"),already=rows.Count(r=>r.ItemStatus=="skipped");Status("共计 "+rows.Count+" 个程序，启动成功 "+started+" 个"+(sent>0?"，成功发送请求 "+sent+" 个（由系统关联程序打开）":"")+(already>0?"，已在运行 "+already+" 个":"")+(failed.Count>0?"；未启动成功："+String.Join("、",failed.Select(r=>r.Name)):"；已完成启动状态检查"));
    }
-  async void HotkeyAction(bool restore){if(busy||demo)return;SetBusy(true);try{if(restore){if(!history.Any(x=>x.ItemStatus=="configured")){var b=db.Query("SELECT batch FROM items WHERE status IN ('closed','launchfailed') ORDER BY batch DESC LIMIT 1");if(b.Count>0)ReloadHistory(Int64.Parse(b[0][0]));}Navigate(1);await RestoreCore();}else{await Scan();await CloseCore();}}catch(Exception ex){Error(ex);}finally{SetBusy(false);}}
+  async void HotkeyAction(bool restore){if(busy||demo)return;if(restore&&pendingRestoreProfile!=0){ReloadCollections();Navigate(1);}SetBusy(true);try{if(restore){if(!history.Any(x=>x.ItemStatus=="configured")){var b=db.Query("SELECT batch FROM items WHERE status IN ('closed','launchfailed') ORDER BY batch DESC LIMIT 1");if(b.Count>0)ReloadHistory(Int64.Parse(b[0][0]));}Navigate(1);await RestoreCore();}else{await Scan();await CloseCore();}}catch(Exception ex){Error(ex);}finally{SetBusy(false);}}
   void UpdateHiddenCount(){int count=db.HiddenPrograms().Count;Text("HiddenCountText",count==0?"尚未隐藏程序；隐藏只影响当前列表，不会关闭或卸载程序":"已从当前列表隐藏 "+count+" 个程序；刷新与重启后继续生效，可随时恢复显示");}
    void Forget(){HideRows(current.Where(x=>x.Selected));}
   void ManageHidden(){if(busy)return;var rows=db.HiddenPrograms();if(rows.Count==0){Status("没有已隐藏的程序");return;}var dialog=new ProgramSelectionDialog(w,rows,true);if(dialog.ShowDialog()!=true)return;db.RestorePrograms(dialog.Chosen);UpdateHiddenCount();Refresh();Status("已允许 "+dialog.Chosen.Count+" 个程序重新显示；下次识别时加入列表，不会自动勾选或启动");}
@@ -214,15 +214,16 @@ namespace TrayLeaf {
   void UpdateKeys(){Text("CloseHotkeyText",closeKey.ToString());Text("RestoreHotkeyText",restoreKey.ToString()+" · 快捷键处理最近一个含待恢复项的批次");}
   void RegisterKeys(HotkeySpec close,HotkeySpec restore){Native.UnregisterHotKey(handle,1);Native.UnregisterHotKey(handle,2);if(close.Key!=0&&!Native.RegisterHotKey(handle,1,close.Mods|0x4000,close.Key))throw new Win32Exception(System.Runtime.InteropServices.Marshal.GetLastWin32Error(),"关闭快捷键注册失败；可能已被其他程序占用");if(restore.Key!=0&&restore.Code!=close.Code&&!Native.RegisterHotKey(handle,2,restore.Mods|0x4000,restore.Key)){Native.UnregisterHotKey(handle,1);throw new Win32Exception(System.Runtime.InteropServices.Marshal.GetLastWin32Error(),"恢复快捷键注册失败；可能已被其他程序占用");}}
   IntPtr Hook(IntPtr hwnd,int msg,IntPtr wp,IntPtr lp,ref bool handled){if(msg==0x312){handled=true;if(Get<TextBox>("CloseHotkeyInput").IsKeyboardFocused||Get<TextBox>("RestoreHotkeyInput").IsKeyboardFocused||busy)return IntPtr.Zero;Guard(delegate{bool restore=wp.ToInt32()==2;if(closeKey.Code==restoreKey.Code)restore=Policy.SharedAction(history.Any(x=>x.ItemStatus=="configured"&&x.Selected)||db.Query("SELECT id FROM items WHERE status IN ('closed','launchfailed') LIMIT 1").Count>0)=="restore";HotkeyAction(restore);});}return IntPtr.Zero;}
-  void SaveSettings(){bool oldAuto=demo?Setting("autoStart",false):StartupManager.Enabled,oldAdmin=demo?Setting("runAsAdmin",true):StartupManager.PreferAdmin;bool startupApplied=false;
-   try{if(!demo)RegisterKeys(editClose,editRestore);}catch(Exception original){try{if(!demo)RegisterKeys(closeKey,restoreKey);}catch(Exception rollback){throw new InvalidOperationException(original.Message+"\n原快捷键也未能恢复："+rollback.Message);}throw;}
+  void SaveSettings(){lock(db.SyncRoot){bool oldAuto=startupAuto,oldAdmin=startupAdmin;bool startupApplied=false;
+   try{if(!demo&&(editClose.Code!=closeKey.Code||editRestore.Code!=restoreKey.Code))RegisterKeys(editClose,editRestore);}catch(Exception original){try{if(!demo)RegisterKeys(closeKey,restoreKey);}catch(Exception rollback){throw new InvalidOperationException(original.Message+"\n原快捷键也未能恢复："+rollback.Message);}throw;}
    try{db.Execute("BEGIN IMMEDIATE");db.Set("closeHotkey",editClose.Code);db.Set("restoreHotkey",editRestore.Code);db.Set("fontFamily",Appearance.Resolve(Get<ComboBox>("FontFamilyInput").SelectedValue as string??w.FontFamily.Source).Source);
     foreach(var pair in new[]{new[]{"confirmClose","ConfirmCloseInput"},new[]{"confirmHide","ConfirmHideInput"},new[]{"confirmForce","ConfirmForceInput"},new[]{"candidates","ShowCandidates"},new[]{"minimizeTray","MinimizeToTray"},new[]{"launchHidden","LaunchHidden"}})db.Set(pair[0],Get<CheckBox>(pair[1]).IsChecked==true?"1":"0");
-    SaveModern();startupApplied=true;db.Execute("COMMIT");
+    SaveModern();if(!demo&&(oldAuto!=(Get<CheckBox>("AutoStartInput").IsChecked==true)||oldAdmin!=(Get<CheckBox>("RunAsAdminInput").IsChecked==true))){StartupManager.Apply(Get<CheckBox>("AutoStartInput").IsChecked==true,Get<CheckBox>("RunAsAdminInput").IsChecked==true);startupApplied=true;}db.Execute("COMMIT");
    }catch{db.Execute("ROLLBACK");if(!demo){RegisterKeys(closeKey,restoreKey);if(startupApplied)StartupManager.Apply(oldAuto,oldAdmin);}throw;}
    w.FontFamily=Appearance.Resolve(db.Get("fontFamily",Appearance.DefaultFont));closeKey=editClose;restoreKey=editRestore;UpdateKeys();Status("设置已保存");
-  }
+  }}
   void FillDemo(){Navigate(0);var names=new[]{"音乐播放器","聊天应用","云盘同步","创意工具更新器","Windows 资源管理器"};var exe=new[]{"MusicPlayer.exe","Messenger.exe","CloudSync.exe","CreativeUpdater.exe","explorer.exe"};for(int i=0;i<5;i++)current.Add(new AppRow{Name=names[i],ProcessName=exe[i],Path=@"C:\Program Files\Example\"+exe[i],Source=i<3?"通知区域":"任务栏窗口",MemoryMB=new[]{248.0,312,89,65,143}[i],Selected=i<3,ArgsKnown=true,Risk=i==4,RiskReason=i==4?"系统基础进程":"",State="运行中"});foreach(var row in current)LoadIcon(row);Get<DataGrid>("ProcessGrid").ItemsSource=current;ApplyFilter();Status("界面预览使用示例数据 · 正式运行时自动识别实际进程");}
  }
 }
+
 

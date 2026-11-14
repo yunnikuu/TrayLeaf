@@ -29,7 +29,7 @@ namespace TrayLeaf {
    Execute("CREATE TABLE IF NOT EXISTS batches(id INTEGER PRIMARY KEY AUTOINCREMENT,created TEXT NOT NULL)");
    Execute("CREATE TABLE IF NOT EXISTS items(id INTEGER PRIMARY KEY AUTOINCREMENT,batch INTEGER NOT NULL REFERENCES batches(id) ON DELETE CASCADE,name TEXT NOT NULL,path TEXT NOT NULL,args TEXT NOT NULL,admin TEXT NOT NULL,status TEXT NOT NULL,error TEXT NOT NULL DEFAULT '')");
    Execute("CREATE TABLE IF NOT EXISTS hidden_programs(key TEXT PRIMARY KEY COLLATE NOCASE,name TEXT NOT NULL,path TEXT NOT NULL,process TEXT NOT NULL)");
-   InitializeCollections();
+   InitializeCollections();Initialize100();
   }
   IntPtr Prepare(string sql,string[] args) {
    IntPtr stmt;byte[] bytes=Encoding.UTF8.GetBytes(sql+"\0");int rc=sqlite3_prepare_v2(db,bytes,bytes.Length,out stmt,IntPtr.Zero);if(rc!=0)throw new IOException(Error());
@@ -37,6 +37,7 @@ namespace TrayLeaf {
   }
   public void Execute(string sql,params string[] args) {lock(gate){IntPtr s=Prepare(sql,args);try{int r;do{r=sqlite3_step(s);}while(r==100);if(r!=101)throw new IOException(Error());}finally{sqlite3_finalize(s);}}}
   public List<string[]> Query(string sql,params string[] args) {lock(gate){IntPtr s=Prepare(sql,args);var result=new List<string[]>();try {int rc;while((rc=sqlite3_step(s))==100){string[] row=new string[sqlite3_column_count(s)];for(int i=0;i<row.Length;i++)row[i]=Utf(sqlite3_column_text(s,i),sqlite3_column_bytes(s,i));result.Add(row);}if(rc!=101)throw new IOException(Error());return result;}finally{sqlite3_finalize(s);}}}
+  internal object SyncRoot{get{return gate;}}
   public string Get(string key,string fallback) {var rows=Query("SELECT value FROM settings WHERE key=?",key);return rows.Count==0?fallback:rows[0][0];}
   public void Set(string key,string value) {Execute("INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)",key,value);}
   public void SaveManaged(string path,string name,string args,bool admin,bool chosen) {Execute("INSERT OR REPLACE INTO managed(path,name,args,admin,chosen) VALUES(?,?,?,?,?)",path,name,args,admin?"1":"0",chosen?"1":"0");}

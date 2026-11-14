@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -9,8 +10,11 @@ namespace TrayLeaf {
   readonly Func<HashSet<string>> read;readonly Func<int,Task> delay;
   internal LaunchMonitor():this(ProcessService.RunningPaths,ms=>Task.Delay(ms)){}
   internal LaunchMonitor(Func<HashSet<string>> readRunningPaths,Func<int,Task> wait){read=readRunningPaths;delay=wait;}
+  internal static bool CanObserve(string path){string extension=Path.GetExtension(path??"");return String.Equals(extension,".exe",StringComparison.OrdinalIgnoreCase)||String.Equals(extension,".com",StringComparison.OrdinalIgnoreCase);}
   public async Task VerifyAsync(IEnumerable<AppRow> rows,OperationService ops){
-   var pending=rows.Where(r=>r.ItemStatus=="launched").ToList();
+   var launched=rows.Where(r=>r.ItemStatus=="launched").ToList();
+   foreach(var row in launched.Where(r=>!CanObserve(r.Path))){row.Running=null;ops.State(row,"dispatched","");row.State="成功发送请求";}
+   var pending=launched.Where(r=>CanObserve(r.Path)).ToList();
    for(int attempt=1;attempt<=MaximumChecks&&pending.Count>0;attempt++){
     await delay(IntervalMilliseconds);HashSet<string> running=null;string error=null;
     try{var snapshot=await Task.Run(read);running=new HashSet<string>(snapshot,StringComparer.OrdinalIgnoreCase);}catch(Exception ex){error=ex.Message;}

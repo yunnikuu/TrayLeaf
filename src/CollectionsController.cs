@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Threading;
@@ -29,7 +29,7 @@ namespace TrayLeaf {
    }
    Click("SaveCloseHistoryProfileButton",delegate{var set=Get<ComboBox>("CloseHistoryCombo").SelectedItem as SavedSet;if(set==null){Status("先选择一条关闭历史");return;}SaveProfile("close",false,db.LoadSet(set.Id));});
    Get<ComboBox>("CloseHistoryCombo").SelectionChanged+=delegate{if(loadingCollections||busy)return;Guard(delegate{var set=Get<ComboBox>("CloseHistoryCombo").SelectedItem as SavedSet;if(set!=null)ApplyCloseRows(db.LoadSet(set.Id),"关闭历史");});};
-   ProgramPresentation.AttachMenus(Get<DataGrid>("ProcessGrid"),Status,row=>HideRows(new[]{row}));ProgramPresentation.AttachMenus(Get<DataGrid>("RestoreGrid"),Status);
+   ProgramPresentation.AttachMenus(Get<DataGrid>("ProcessGrid"),Status,row=>HideRows(new[]{row}),RenameMain);ProgramPresentation.AttachMenus(Get<DataGrid>("RestoreGrid"),Status,null,RenameMain,EditRestoreArgs);
    ReloadCollections();
   }
   static void ConfigureProfileSelection(ComboBox combo,Action apply){bool open=false,cancelled=false;
@@ -56,7 +56,7 @@ namespace TrayLeaf {
   void ApplyProfile(string kind){if(busy)return;var set=Get<ComboBox>(kind=="close"?"CloseProfileCombo":"RestoreProfileCombo").SelectedItem as SavedSet;if(set==null){Status("先选择一个配置");return;}
    var rows=db.LoadSet(set.Id);if(kind=="close"){ApplyCloseRows(rows,"关闭配置");return;}
    loading=true;try{Get<ComboBox>("BatchCombo").SelectedItem=null;}finally{loading=false;}
-   history=rows;foreach(var r in history){r.ClosePriority=r.Selected?1:0;r.ItemId=0;r.ItemStatus="configured";r.State=r.Selected?"配置 · 将启动":"配置 · 不启动";LoadIcon(r);Wire(r,true);}
+   history=rows;foreach(var r in history){r.ClosePriority=r.Selected?1:0;r.ItemId=0;r.ItemStatus="configured";r.State="未运行 / 可启动";LoadIcon(r);Wire(r,true);}
    Get<DataGrid>("RestoreGrid").ItemsSource=history;HistoryPresentation.ApplyOrder(Get<DataGrid>("RestoreGrid"));Status("已应用恢复配置“"+set.Name+"”；勾选项将在点击“开启所选程序”时启动");
   }
   void ApplyCloseRows(List<AppRow> rows,string source){

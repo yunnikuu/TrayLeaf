@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -29,6 +29,7 @@ namespace TrayLeaf {
    var sorted=grid.Columns.FirstOrDefault(c=>c.SortDirection.HasValue&&!String.IsNullOrEmpty(c.SortMemberPath));
    using(view.DeferRefresh()){view.SortDescriptions.Clear();view.CustomSort=new RowComparer(sorted==null?"Name":sorted.SortMemberPath,sorted==null?ListSortDirection.Descending:sorted.SortDirection.Value);}
   }
+  internal static int CompareProgramNames(AppRow a,AppRow b){return new RowComparer("Name",ListSortDirection.Descending).Compare(a,b);}
   sealed class RowComparer:IComparer {
    readonly string key;readonly int direction;internal RowComparer(string k,ListSortDirection d){key=k;direction=d==ListSortDirection.Ascending?1:-1;}
    // Sort the label users actually see, including in the all-processes view.

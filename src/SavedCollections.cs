@@ -47,7 +47,7 @@ namespace TrayLeaf {
      Execute("UPDATE saved_sets SET name=? WHERE id=?",name,id.ToString());Execute("DELETE FROM saved_entries WHERE set_id=?",id.ToString());
      foreach(var row in entries)Execute("INSERT INTO saved_entries(set_id,name,path,args,admin,chosen,state) VALUES(?,?,?,?,?,?,?)",id.ToString(),row.Name??"",row.Path??"",row.Args??"",row.Admin?"1":"0",row.Selected?"1":"0",row.ItemStatus??"");
     }
-    Execute("COMMIT");return id;
+    if(kind=="close")SyncProfileCore(id,name,entries);Execute("COMMIT");return id;
    }catch{Execute("ROLLBACK");throw;}}
   }
   public List<SavedSet> ListSets(string kind){return Query("SELECT s.id,s.kind,s.name,s.created,COUNT(e.id) FROM saved_sets s LEFT JOIN saved_entries e ON s.id=e.set_id WHERE s.kind=? GROUP BY s.id ORDER BY s.id DESC",kind).Select(x=>new SavedSet{Id=Int64.Parse(x[0]),Kind=x[1],Name=x[2],Created=x[3],Count=Int32.Parse(x[4])}).ToList();}

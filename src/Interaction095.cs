@@ -32,7 +32,7 @@ namespace TrayLeaf {
    box.GotKeyboardFocus+=delegate{if(recordingBox==box)return;EndRecording(false);recordingBox=box;recordingBefore=close?editClose:editRestore;recordingClose=close;box.Text="正在录制操作";};
    box.LostKeyboardFocus+=delegate{if(recordingBox==box)EndRecording(false);};
   }
-  void EndRecording(bool cancel){if(recordingBox==null)return;var box=recordingBox;recordingBox=null;if(cancel){if(recordingClose)editClose=recordingBefore;else editRestore=recordingBefore;}box.Text=(recordingClose?editClose:editRestore).ToString();recordingBefore=null;}
+  void EndRecording(bool cancel){if(recordingBox==null)return;var box=recordingBox;recordingBox=null;if(cancel){if(recordingClose)editClose=recordingBefore;else editRestore=recordingBefore;}box.Text=(recordingClose?editClose:editRestore).ToString();recordingBefore=null;if(!initializing)SaveLiveSettings();}
   void CaptureKey(TextBox box,KeyEventArgs e,bool close){
    e.Handled=true;Key key=e.Key==Key.System?e.SystemKey:e.Key;
    if(key==Key.Escape){EndRecording(true);box.Text=(close?editClose:editRestore).ToString();Keyboard.ClearFocus();return;}
