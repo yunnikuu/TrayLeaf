@@ -13,7 +13,8 @@ $flags+='/resource:'+(Join-Path $root 'assets\TrayLeaf.ico')+',TrayLeaf.Assets.T
 $flags+='/resource:'+(Join-Path $root 'assets\TrayLeaf.png')+',TrayLeaf.Assets.TrayLeaf.png'
 if($Diagnostic){$flags+='/win32manifest:'+(Join-Path $root 'tests\asInvoker.manifest')}else{$flags+='/win32manifest:'+(Join-Path $root 'app.manifest')}
 foreach($dll in @('PresentationFramework','PresentationCore','WindowsBase','System.Xaml')){if($dll -eq 'System.Xaml'){$flags+='/r:'+(Join-Path $fx ($dll+'.dll'))}else{$flags+='/r:'+(Join-Path $fx ('WPF\'+$dll+'.dll'))}}
-foreach($dll in @('System','System.Core','System.Management','System.Windows.Forms','System.Drawing','Microsoft.CSharp')){$flags+='/r:'+(Join-Path $fx ($dll+'.dll'))}
+foreach($dll in @('System','System.Core','System.Management','System.Windows.Forms','System.Drawing','Microsoft.CSharp','System.Web.Extensions')){$flags+='/r:'+(Join-Path $fx ($dll+'.dll'))}
+$flags+='/resource:'+(Join-Path $root 'assets\LinkedLaunch.png')+',TrayLeaf.Assets.LinkedLaunch.png'
 $flags+=@(Get-ChildItem -LiteralPath (Join-Path $root 'src') -Filter '*.cs' | ForEach-Object FullName)
 & $csc @flags
 if($LASTEXITCODE -ne 0){throw "编译失败，退出码 $LASTEXITCODE"}

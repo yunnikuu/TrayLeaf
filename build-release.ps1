@@ -18,7 +18,7 @@ try {
  Copy-Item -LiteralPath (Join-Path $root 'installer\WiX-LICENSE.txt') -Destination (Join-Path $stage 'WiX-LICENSE.txt')
  $version=[Diagnostics.FileVersionInfo]::GetVersionInfo((Join-Path $stage 'TrayLeaf.exe'))
  $v=$version.ProductVersion
- if($v -notmatch '^\d+\.\d+\.\d+$'){throw "Invalid product version: $v"}
+ if($v -notmatch '^\d+\.\d+\.\d+(?:-fix\d+)?$'){throw "Invalid product version: $v"}
  if(!$OutputDir){$OutputDir=Join-Path $workspace ('TrayLeaf\releases\github'+$v+'\release')}
  $OutputDir=[IO.Path]::GetFullPath($OutputDir)
  [IO.Directory]::CreateDirectory($OutputDir) | Out-Null
