@@ -10,6 +10,8 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <taskschd.h>
+#include <sddl.h>
 
 // Kept native: server-side SfxCA unpacking can fail before CLR/custom code starts.
 struct RunningImage { DWORD pid; FILETIME created; std::wstring image; };
@@ -138,14 +140,90 @@ extern "C" __declspec(dllexport) UINT __stdcall CloseTrayLeafForInstall(MSIHANDL
  catch(...){Log(session,L"Unexpected exception; refusing installation");return ERROR_INSTALL_FAILURE;}
 }
 #else
+// Native deferred cleanup: no WPF startup, no nested UAC, and a bounded wait.
+static DWORD WINAPI CleanupStartupTask(void* context){
+ const std::wstring name=L"TrayLeaf-"+*static_cast<std::wstring*>(context);
+ HRESULT init=CoInitializeEx(NULL,COINIT_MULTITHREADED);ITaskService* service=NULL;ITaskFolder* folder=NULL;HRESULT hr=E_FAIL;
+ if(SUCCEEDED(init)){hr=CoCreateInstance(CLSID_TaskScheduler,NULL,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&service));
+  if(SUCCEEDED(hr)){VARIANT empty;VariantInit(&empty);hr=service->Connect(empty,empty,empty,empty);}
+  if(SUCCEEDED(hr)){BSTR root=SysAllocString(L"\\");hr=service->GetFolder(root,&folder);SysFreeString(root);}
+  if(SUCCEEDED(hr)){BSTR task=SysAllocString(name.c_str());hr=folder->DeleteTask(task,0);SysFreeString(task);if(hr==HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND))hr=S_OK;}
+  if(folder)folder->Release();if(service)service->Release();CoUninitialize();}
+ return SUCCEEDED(hr)?0:(DWORD)hr;
+}
+static int WaitStartupCleanup(LPTHREAD_START_ROUTINE action,void* context){
+ Handle worker(CreateThread(NULL,0,action,context,0,NULL));if(!worker.h)return (int)GetLastError();
+ if(WaitForSingleObject(worker.h,2500)!=WAIT_OBJECT_0)return WAIT_TIMEOUT;DWORD code=1;GetExitCodeThread(worker.h,&code);return (int)code;
+}
+#ifdef TRAYLEAF_CLEANUP_TEST
+static DWORD WINAPI SimulatedStall(void*){Sleep(60000);return 0;}
+static DWORD WINAPI SimulatedSuccess(void*){return 0;}
+#endif
+static int RemoveStartupWithDeadline(const std::wstring& owner){
+ PSID sid=NULL;if(!ConvertStringSidToSidW(owner.c_str(),&sid))return ERROR_INVALID_SID;bool valid=IsValidSid(sid)!=FALSE;LocalFree(sid);if(!valid)return ERROR_INVALID_SID;
+ // Static lifetime remains valid even if the COM worker stalls until ExitProcess.
+ static std::wstring copy;copy=owner;return WaitStartupCleanup(CleanupStartupTask,&copy);
+}
 int WINAPI wWinMain(HINSTANCE,HINSTANCE,PWSTR,int){
  try{
   int count=0;LPWSTR*argv=CommandLineToArgvW(GetCommandLineW(),&count);std::vector<std::wstring>targets;
   if(!argv)return 2;
+#ifdef TRAYLEAF_CLEANUP_TEST
+  if(count==2&&Same(argv[1],L"--fixture-stall"))ExitProcess(WaitStartupCleanup(SimulatedStall,NULL));
+  if(count==2&&Same(argv[1],L"--fixture-success"))ExitProcess(WaitStartupCleanup(SimulatedSuccess,NULL));
+#endif
+  if(count==3&&Same(argv[1],L"--remove-startup")){std::wstring owner=argv[2];LocalFree(argv);int result=RemoveStartupWithDeadline(owner);ExitProcess((UINT)result);}
   bool valid=count>=3&&count<=10&&Same(argv[1],L"--close");
   if(valid)for(int i=2;i<count;i++){auto path=Full(argv[i]);if(!ValidTarget(path)){valid=false;break;}targets.push_back(path);}
   LocalFree(argv);if(!valid)return 2;
   return (int)Stop(Find(targets,0),0);
  }catch(...){return 1;}
+}
+#endif
+
+// Desktop ordering belongs to Explorer. Move only our new shortcut, and never
+// disable auto-arrange, change sort rules, or reposition any other desktop item.
+#ifndef TRAYLEAF_HELPER
+#include <shlobj.h>
+#include <shobjidl.h>
+#include <exdisp.h>
+#include <servprov.h>
+#include <limits.h>
+#include <shlwapi.h>
+#include "DesktopPlacement.h"
+extern "C" __declspec(dllexport) UINT __stdcall PlaceDesktopShortcutAtEnd(MSIHANDLE session);
+extern "C" __declspec(dllexport) UINT __stdcall CaptureDesktopShortcut(MSIHANDLE session){
+ wchar_t path[MAX_PATH];bool existed=false;
+ for(int id:{CSIDL_DESKTOPDIRECTORY,CSIDL_COMMON_DESKTOPDIRECTORY})if(SUCCEEDED(SHGetFolderPathW(NULL,id,NULL,SHGFP_TYPE_CURRENT,path))){std::wstring link=std::wstring(path)+L"\\轻羽归栈.lnk";if(GetFileAttributesW(link.c_str())!=INVALID_FILE_ATTRIBUTES)existed=true;}
+ MsiSetPropertyW(session,L"TRAYLEAF_DESKTOP_EXISTS",existed?L"1":L"0");
+ if(!existed)return ERROR_SUCCESS;MsiSetPropertyW(session,L"TRAYLEAF_CAPTURE_DESKTOP",L"1");
+ UINT result=PlaceDesktopShortcutAtEnd(session);MsiSetPropertyW(session,L"TRAYLEAF_CAPTURE_DESKTOP",L"");return result;
+}
+
+extern "C" __declspec(dllexport) UINT __stdcall PlaceDesktopShortcutAtEnd(MSIHANDLE session){
+ bool capture=Property(session,L"TRAYLEAF_CAPTURE_DESKTOP")==L"1";bool existed=Property(session,L"TRAYLEAF_DESKTOP_EXISTS")==L"1";
+ if(!capture&&DesktopPlacementPolicy(existed,!Property(session,L"TRAYLEAF_DESKTOP_X").empty(),false)==DesktopPlacementMode::Keep){Log(session,L"Existing shortcut retained; previous position unavailable");return ERROR_SUCCESS;}
+ HRESULT init=CoInitializeEx(NULL,COINIT_APARTMENTTHREADED);bool uninit=SUCCEEDED(init);
+ IShellWindows* windows=NULL;IDispatch* desktop=NULL;IServiceProvider* provider=NULL;IShellBrowser* browser=NULL;IShellView* view=NULL;IFolderView2* folderView=NULL;IShellFolder* folder=NULL;IEnumIDList* items=NULL;PIDLIST_RELATIVE target=NULL;
+ try{HRESULT hr=CoCreateInstance(CLSID_ShellWindows,NULL,CLSCTX_LOCAL_SERVER,IID_PPV_ARGS(&windows));if(FAILED(hr))throw hr;
+ VARIANT empty;VariantInit(&empty);long hwnd=0;hr=windows->FindWindowSW(&empty,&empty,SWC_DESKTOP,&hwnd,SWFO_NEEDDISPATCH,&desktop);if(FAILED(hr)||!desktop)throw E_FAIL;
+ if(FAILED(desktop->QueryInterface(IID_PPV_ARGS(&provider))))throw E_NOINTERFACE;
+ if(FAILED(provider->QueryService(SID_STopLevelBrowser,IID_PPV_ARGS(&browser))))throw E_NOINTERFACE;
+ if(FAILED(browser->QueryActiveShellView(&view)))throw E_NOINTERFACE;
+ if(FAILED(view->QueryInterface(IID_PPV_ARGS(&folderView))))throw E_NOINTERFACE;
+ DWORD flags;if(FAILED(folderView->GetCurrentFolderFlags(&flags))||(flags&FWF_AUTOARRANGE)){Log(session,L"Desktop auto-arrange enabled: keeping Explorer ordering");throw S_FALSE;}
+ if(FAILED(folderView->GetFolder(IID_PPV_ARGS(&folder))))throw E_NOINTERFACE;
+ if(FAILED(folderView->Items(SVGIO_ALLVIEW,IID_PPV_ARGS(&items))))throw E_NOINTERFACE;
+ wchar_t desktopPath[MAX_PATH];if(FAILED(SHGetFolderPathW(NULL,CSIDL_DESKTOPDIRECTORY,NULL,SHGFP_TYPE_CURRENT,desktopPath)))throw E_FAIL;
+ std::wstring wanted=Full(std::wstring(desktopPath)+L"\\轻羽归栈.lnk");std::vector<POINT> points;POINT old={};bool positionValid=false;PIDLIST_RELATIVE item=NULL;
+ while(items->Next(1,&item,NULL)==S_OK){STRRET name;wchar_t path[32768];POINT p;if(SUCCEEDED(folder->GetDisplayNameOf(item,SHGDN_FORPARSING,&name))&&SUCCEEDED(StrRetToBufW(&name,item,path,32768))&&Same(Full(path),wanted)){target=ILClone(item);positionValid=SUCCEEDED(folderView->GetItemPosition(item,&old));}else if(SUCCEEDED(folderView->GetItemPosition(item,&p)))points.push_back(p);CoTaskMemFree(item);item=NULL;}
+ if(!target){Log(session,L"Desktop shortcut not yet visible; retaining Explorer position");throw S_FALSE;}
+ if(capture){if(!positionValid)throw S_FALSE;MsiSetPropertyW(session,L"TRAYLEAF_DESKTOP_X",std::to_wstring(old.x).c_str());MsiSetPropertyW(session,L"TRAYLEAF_DESKTOP_Y",std::to_wstring(old.y).c_str());throw S_FALSE;}
+ if(existed){POINT saved={_wtol(Property(session,L"TRAYLEAF_DESKTOP_X").c_str()),_wtol(Property(session,L"TRAYLEAF_DESKTOP_Y").c_str())};PCUITEMID_CHILD id=target;hr=folderView->SelectAndPositionItems(1,&id,&saved,SVSI_POSITIONITEM);Log(session,L"Restored existing TrayLeaf shortcut position");throw S_FALSE;}
+ POINT spacing;HWND viewHandle=NULL;RECT client={};if(FAILED(folderView->GetSpacing(&spacing))||FAILED(view->GetWindow(&viewHandle))||!GetClientRect(viewHandle,&client))throw E_FAIL;
+ POINT next;if(!DesktopTailPosition(points,spacing,client.right,client.bottom,next)){Log(session,L"No free tail slot; retaining existing icon positions");throw S_FALSE;}
+ PCUITEMID_CHILD id=target;hr=folderView->SelectAndPositionItems(1,&id,&next,SVSI_POSITIONITEM);Log(session,SUCCEEDED(hr)?L"Moved only TrayLeaf shortcut to desktop tail":L"Explorer declined desktop positioning");
+ }catch(...){/* Best effort, never fail a successful installation. */}
+ if(target)CoTaskMemFree(target);if(items)items->Release();if(folder)folder->Release();if(folderView)folderView->Release();if(view)view->Release();if(browser)browser->Release();if(provider)provider->Release();if(desktop)desktop->Release();if(windows)windows->Release();if(uninit)CoUninitialize();return ERROR_SUCCESS;
 }
 #endif

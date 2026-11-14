@@ -19,8 +19,14 @@ $OutputDir=[IO.Path]::GetFullPath($OutputDir)
 [IO.Directory]::CreateDirectory($OutputDir) | Out-Null
 [xml]$definition=Get-Content -LiteralPath (Join-Path $PSScriptRoot 'TrayLeaf.wxs') -Raw -Encoding UTF8
 $productVersion=[string]$definition.Wix.Product.Version
-if($v.ProductVersion -ne $productVersion -or $v.FileVersion -ne ($productVersion+'.0')){throw '安装模板与程序载荷的版本必须一致。'}
-$fileName='TrayLeaf-v'+$productVersion+'-Windows-x64-Setup.msi'
+$releaseVersion=[string]($definition.Wix.Product.Property | Where-Object Id -eq 'TRAYLEAF_RELEASE_VERSION').Value
+if(!$releaseVersion){$releaseVersion=$productVersion}
+# Derive the fourth file-version component from the release suffix, not a fixed fix number.
+$revision=0
+if($releaseVersion -match '-fix(\d+)$'){$revision=[int]$Matches[1]}
+$expectedFileVersion=$productVersion+'.'+$revision
+if($v.ProductVersion -ne $releaseVersion -or $v.FileVersion -ne $expectedFileVersion){throw '安装模板与程序载荷的版本必须一致。'}
+$fileName='TrayLeaf-v'+$releaseVersion+'-Windows-x64-Setup.msi'
 $object=Join-Path $build 'TrayLeaf.wixobj';$msi=Join-Path $OutputDir $fileName
 $builtMsi=Join-Path $build $fileName
 $sdk=Join-Path $WixBin 'sdk'
@@ -44,9 +50,9 @@ if(!$env:INCLUDE){
  }
  if($LASTEXITCODE){throw 'Could not initialize the x64 compiler environment.'}
 }
-& $compiler.Source /nologo /LD /MT /EHsc /O2 /utf-8 /std:c++14 $cpp ("/Fo"+(Join-Path $build 'InstallerProcessCloser.obj')) /link ("/OUT:"+$nativeCloser) msi.lib advapi32.lib shell32.lib
+& $compiler.Source /nologo /LD /MT /EHsc /O2 /utf-8 /std:c++14 $cpp ("/Fo"+(Join-Path $build 'InstallerProcessCloser.obj')) /link ("/OUT:"+$nativeCloser) ("/IMPLIB:"+(Join-Path $build 'InstallerProcessCloser.lib')) msi.lib advapi32.lib shell32.lib user32.lib ole32.lib oleaut32.lib uuid.lib shlwapi.lib taskschd.lib
 if($LASTEXITCODE){throw "Native process action compilation failed: $LASTEXITCODE"}
-& $compiler.Source /nologo /MT /EHsc /O2 /utf-8 /std:c++14 /DTRAYLEAF_HELPER $cpp ("/Fo"+(Join-Path $build 'InstallerCloseHelper.obj')) /link /SUBSYSTEM:WINDOWS ("/OUT:"+$shutdownHelper) msi.lib advapi32.lib shell32.lib
+& $compiler.Source /nologo /MT /EHsc /O2 /utf-8 /std:c++14 /DTRAYLEAF_HELPER $cpp ("/Fo"+(Join-Path $build 'InstallerCloseHelper.obj')) /link /SUBSYSTEM:WINDOWS ("/OUT:"+$shutdownHelper) msi.lib advapi32.lib shell32.lib user32.lib ole32.lib oleaut32.lib uuid.lib shlwapi.lib taskschd.lib
 if($LASTEXITCODE){throw "Shutdown helper compilation failed: $LASTEXITCODE"}
 
 & $csc /nologo /target:library /platform:x64 /optimize+ /utf8output ('/r:'+$dtf) /r:System.Windows.Forms.dll ('/out:'+$custom) (Join-Path $PSScriptRoot 'FolderPicker.cs')

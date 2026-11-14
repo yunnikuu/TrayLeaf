@@ -1,11 +1,12 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-  <Product Id="*" Name="轻羽归栈 TrayLeaf" Language="2052" Version="0.9.8" Manufacturer="TrayLeaf" UpgradeCode="{49F5C6BF-41D9-5CF1-8FFA-917E45CCB2DC}" Codepage="936">
+  <Product Id="*" Name="轻羽归栈 TrayLeaf" Language="2052" Version="1.0.0" Manufacturer="TrayLeaf" UpgradeCode="{49F5C6BF-41D9-5CF1-8FFA-917E45CCB2DC}" Codepage="936">
     <!-- Elevated engine can update rollback-file security on protected/custom drives.
          Do not set ALLUSERS: preserve the existing per-user upgrade context. -->
-    <Package Id="*" InstallerVersion="500" Compressed="yes" InstallPrivileges="elevated" Platform="x64" Description="轻羽归栈 TrayLeaf v0.9.8 安装程序" Comments="Windows 10/11 x64；当前用户安装；安装时请求提升权限以支持覆盖更新。" />
+    <Package Id="*" InstallerVersion="500" Compressed="yes" InstallPrivileges="elevated" Platform="x64" Description="轻羽归栈 TrayLeaf v1.0.0-fix3 安装程序" Comments="Windows 10/11 x64；当前用户安装；安装时请求提升权限以支持覆盖更新。" />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
     <MajorUpgrade DowngradeErrorMessage="已安装更高版本的 TrayLeaf，请先卸载较新版本。" Schedule="afterInstallInitialize" AllowSameVersionUpgrades="yes" />
+    <Property Id="TRAYLEAF_RELEASE_VERSION" Value="1.0.0-fix3" />
     <Property Id="ARPPRODUCTICON" Value="TrayLeafIcon" />
     <Property Id="ARPNOMODIFY" Value="1" />
     <!-- A rebuild uses a fresh ProductCode plus AllowSameVersionUpgrades above.
@@ -92,16 +93,17 @@
          Return="ignore" is synchronous: scheduler/UAC waits used to keep this UI open.
          The MSI-owned Run entry is already committed and remains the safe fallback. -->
     <CustomAction Id="ConfigureStartup" FileKey="AppExe" ExeCommand="--configure-startup &quot;[AUTO_START]&quot;" Execute="immediate" Return="asyncNoWait" Impersonate="yes" />
-    <CustomAction Id="RemoveStartup" FileKey="AppExe" ExeCommand="--remove-startup" Execute="immediate" Return="ignore" Impersonate="yes" />
+    <CustomAction Id="RemoveStartup" BinaryKey="ShutdownHelperBinary" ExeCommand="--remove-startup &quot;[UserSID]&quot;" Execute="deferred" Return="ignore" Impersonate="no" />
     <CustomAction Id="AppendProductFolderWithSlash" Property="INSTALLFOLDER" Value="[INSTALLFOLDER]TrayLeaf\" />
     <CustomAction Id="AppendProductFolder" Property="INSTALLFOLDER" Value="[INSTALLFOLDER]\TrayLeaf\" />
     <Binary Id="FolderPickerBinary" SourceFile="$(var.FolderPickerCA)" />
     <Binary Id="ShutdownHelperBinary" SourceFile="$(var.ShutdownHelper)" />
     <Binary Id="ProcessCloserBinary" SourceFile="$(var.ProcessCloser)" />
+    <Binary Id="TrayLeafExitSidebar" SourceFile="exit-sidebar.bmp" />
     <CustomAction Id="CloseTrayLeafForInstall" BinaryKey="ProcessCloserBinary" DllEntry="CloseTrayLeafForInstall" Execute="immediate" Return="check" />
     <CustomAction Id="BrowseInstallFolder" BinaryKey="FolderPickerBinary" DllEntry="BrowseInstallFolder" Execute="immediate" Return="check" />
     <InstallExecuteSequence>
-      <Custom Action="CloseTrayLeafForInstall" Before="InstallValidate">NOT REMOVE AND NOT UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="CloseTrayLeafForInstall" Before="InstallValidate">NOT UPGRADINGPRODUCTCODE</Custom>
       <Custom Action="AppendProductFolderWithSlash" Before="AppendProductFolder"><![CDATA[NOT Installed AND NOT REMOVE AND INSTALLFOLDER AND INSTALLFOLDER ~>> "\" AND NOT (INSTALLFOLDER ~>> "\TrayLeaf" OR INSTALLFOLDER ~>> "\TrayLeaf\")]]></Custom>
       <Custom Action="AppendProductFolder" Before="CostFinalize"><![CDATA[NOT Installed AND NOT REMOVE AND INSTALLFOLDER AND NOT (INSTALLFOLDER ~>> "\" OR INSTALLFOLDER ~>> "\TrayLeaf")]]></Custom>
       <Custom Action="RemoveStartup" Before="RemoveFiles">Installed AND REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE</Custom>
@@ -114,7 +116,40 @@
     <WixVariable Id="WixUIBannerBmp" Value="banner.bmp" />
     <WixVariable Id="WixUIDialogBmp" Value="dialog.bmp" />
     <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+    <CustomAction Id="LaunchOnFinish" FileKey="AppExe" ExeCommand="" Execute="immediate" Return="asyncNoWait" Impersonate="yes" />
+    <CustomAction Id="CaptureDesktopShortcut" BinaryKey="ProcessCloserBinary" DllEntry="CaptureDesktopShortcut" Execute="immediate" Return="ignore" />
+    <InstallUISequence><Custom Action="CaptureDesktopShortcut" After="CostFinalize">NOT REMOVE AND UILevel &gt;= 5 AND ACTION="INSTALL"</Custom></InstallUISequence>
+    <CustomAction Id="PlaceDesktopShortcutAtEnd" BinaryKey="ProcessCloserBinary" DllEntry="PlaceDesktopShortcutAtEnd" Execute="immediate" Return="ignore" />
     <UI Id="TrayLeafUI">
+      <Dialog Id="TrayLeafMaintenanceTypeDlg" Width="370" Height="270" Title="[ProductName] 安装向导">
+        <Control Id="Banner" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="yes" Text="WixUI_Bmp_Banner" />
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="330" Height="16" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}重新安装或删除" />
+        <Control Id="Description" Type="Text" X="25" Y="24" Width="320" Height="16" Transparent="yes" Text="选择您希望执行的操作" />
+        <Control Id="RepairButton" Type="PushButton" X="40" Y="85" Width="90" Height="23" Default="yes" Text="重新安装(&amp;R)"><Publish Property="WixUI_InstallMode" Value="Repair" Order="1">1</Publish><Publish Property="REINSTALLMODE" Value="amus" Order="2">1</Publish><Publish Property="REINSTALL" Value="ALL" Order="3">1</Publish><Publish Event="EndDialog" Value="Return" Order="4">1</Publish></Control>
+        <Control Id="RepairText" Type="Text" X="40" Y="116" Width="290" Height="34" Text="重新安装当前版本，保留您的设置与数据" />
+        <Control Id="RemoveButton" Type="PushButton" X="40" Y="163" Width="90" Height="23" Text="删除(&amp;D)"><Publish Property="WixUI_InstallMode" Value="Remove" Order="1">1</Publish><Publish Property="REINSTALL" Value="{}" Order="2">1</Publish><Publish Property="REMOVE" Value="ALL" Order="3">1</Publish><Publish Event="EndDialog" Value="Return" Order="4">1</Publish></Control>
+        <Control Id="RemoveText" Type="Text" X="40" Y="194" Width="290" Height="28" Text="从您的电脑中删除 TrayLeaf" />
+        <Control Id="Line" Type="Line" X="0" Y="234" Width="370" Height="0" />
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="上一步(&amp;B)" />
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="取消"><Publish Event="SpawnDialog" Value="CancelDlg">1</Publish></Control>
+      </Dialog>
+      <Dialog Id="TrayLeafExitDialog" Width="370" Height="270" Title="[ProductName] 安装向导">
+        <!-- Keep decorative art outside the interactive content: overlapping Bitmap controls can overpaint the checkbox on initial/repeated WM_PAINT. -->
+        <Control Id="Bitmap" Type="Bitmap" X="0" Y="0" Width="125" Height="234" TabSkip="yes" Text="TrayLeafExitSidebar" />
+        <!-- Install and removal labels share geometry; keep their visibility explicitly exclusive. -->
+        <Control Id="Title" Type="Text" X="135" Y="24" Width="220" Height="45" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}安装已完成"><Condition Action="show">NOT REMOVE~="ALL"</Condition><Condition Action="hide">REMOVE~="ALL"</Condition></Control>
+        <Control Id="RemovedTitle" Type="Text" Hidden="yes" X="135" Y="24" Width="220" Height="45" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}卸载已完成"><Condition Action="show">REMOVE~="ALL"</Condition><Condition Action="hide">NOT REMOVE~="ALL"</Condition></Control>
+        <Control Id="RemovedDescription" Type="Text" Hidden="yes" X="135" Y="80" Width="220" Height="70" Transparent="yes" NoPrefix="yes" Text="TrayLeaf 已成功从您的电脑上移除"><Condition Action="show">REMOVE~="ALL"</Condition><Condition Action="hide">NOT REMOVE~="ALL"</Condition></Control>
+        <Control Id="Description" Type="Text" X="135" Y="80" Width="220" Height="45" Transparent="yes" NoPrefix="yes" Text="点击完成退出安装向导"><Condition Action="show">NOT REMOVE~="ALL"</Condition><Condition Action="hide">REMOVE~="ALL"</Condition></Control>
+        <Control Id="Launch" Type="CheckBox" X="135" Y="180" Width="220" Height="25" Property="WIXUI_EXITDIALOGOPTIONALCHECKBOX" CheckBoxValue="1" Hidden="no" Text="启动轻羽归栈"><Condition Action="show">NOT REMOVE~="ALL"</Condition><Condition Action="hide">REMOVE~="ALL"</Condition></Control>
+        <Control Id="Line" Type="Line" X="0" Y="234" Width="370" Height="0" />
+        <Control Id="Finish" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Cancel="yes" Text="完成" />
+      </Dialog>
+      <Publish Dialog="TrayLeafExitDialog" Control="Finish" Event="DoAction" Value="PlaceDesktopShortcutAtEnd" Order="1">DESKTOP_SHORTCUT="1" AND NOT REMOVE~="ALL" AND UILevel &gt;= 5 AND ACTION="INSTALL"</Publish>
+      <Publish Dialog="TrayLeafExitDialog" Control="Finish" Event="DoAction" Value="LaunchOnFinish" Order="2">WIXUI_EXITDIALOGOPTIONALCHECKBOX="1" AND NOT REMOVE~="ALL" AND UILevel &gt;= 5 AND ACTION="INSTALL"</Publish>
+      <Publish Dialog="TrayLeafExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999">1</Publish>
+      <ProgressText Action="CaptureDesktopShortcut">Remembering desktop shortcut position...</ProgressText>
       <ProgressText Action="CloseTrayLeafForInstall">Closing running TrayLeaf before validation...</ProgressText>
       <ProgressText Action="SetREINSTALLMODE">Preparing file replacement...</ProgressText>
       <ProgressText Action="SetREINSTALL">Preparing same-version overwrite...</ProgressText>
@@ -153,14 +188,14 @@
       <ProgressText Action="TrayLeafProgressDlg">Starting installation...</ProgressText>
       <ProgressText Action="WixUIValidatePath">Validating destination folder...</ProgressText>
       <ProgressText Action="BrowseInstallFolder">Selecting destination folder...</ProgressText>
-      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Property="REINSTALLMODE" Value="amus" Order="1">1</Publish>
       <TextStyle Id="WixUI_Font_Normal" FaceName="Microsoft YaHei" Size="9" />
       <TextStyle Id="WixUI_Font_Bigger" FaceName="Microsoft YaHei" Size="13" />
       <TextStyle Id="WixUI_Font_Title" FaceName="Microsoft YaHei" Size="10" Bold="yes" />
       <Property Id="DefaultUIFont" Value="WixUI_Font_Normal" />
       <Property Id="WixUI_Mode" Value="InstallDir" />
       <DialogRef Id="DiskCostDlg" /><DialogRef Id="ErrorDlg" /><DialogRef Id="FatalError" /><DialogRef Id="FilesInUse" /><DialogRef Id="MsiRMFilesInUse" /><DialogRef Id="PrepareDlg" /><DialogRef Id="ResumeDlg" /><DialogRef Id="UserExit" />
-      <InstallUISequence><Show Dialog="ProgressDlg" Before="ExecuteAction">0</Show><Show Dialog="TrayLeafProgressDlg" Before="ExecuteAction">1</Show></InstallUISequence>
+      <AdminUISequence><Show Dialog="TrayLeafExitDialog" OnExit="success"/></AdminUISequence>
+      <InstallUISequence><Show Dialog="TrayLeafExitDialog" OnExit="success"/><Show Dialog="ProgressDlg" Before="ExecuteAction">0</Show><Show Dialog="TrayLeafProgressDlg" Before="ExecuteAction">1</Show></InstallUISequence>
       <Dialog Id="TrayLeafProgressDlg" Width="370" Height="270" Title="[ProductName] 安装向导" Modeless="yes">
         <Control Id="Banner" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="yes" Text="WixUI_Bmp_Banner"/>
         <Control Id="Title" Type="Text" X="15" Y="6" Width="300" Height="18" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}正在安装 [ProductName]"/>
@@ -190,7 +225,7 @@
         <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="下一步(&amp;N)" />
         <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="取消"><Publish Event="SpawnDialog" Value="CancelDlg">1</Publish></Control>
       </Dialog>
-      <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999">1</Publish>
+
       <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="TrayLeafInstallDirDlg">NOT Installed</Publish>
       <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg">Installed AND PATCH</Publish>
       <Publish Dialog="TrayLeafInstallDirDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg">1</Publish>
@@ -205,12 +240,10 @@
       <Publish Dialog="TrayLeafInstallDirDlg" Control="ChangeFolder" Property="INSTALLFOLDER" Value="[TRAYLEAF_SELECTED_FOLDER]" Order="2">TRAYLEAF_SELECTED_FOLDER</Publish>
       <Publish Dialog="TrayLeafInstallDirDlg" Control="ChangeFolder" Event="SetTargetPath" Value="[WIXUI_INSTALLDIR]" Order="3">TRAYLEAF_SELECTED_FOLDER</Publish>
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="TrayLeafInstallDirDlg" Order="1">NOT Installed</Publish>
-      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg" Order="2">Installed AND NOT PATCH</Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="TrayLeafMaintenanceTypeDlg" Order="2">Installed AND NOT PATCH</Publish>
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="2">Installed AND PATCH</Publish>
-      <Publish Dialog="MaintenanceWelcomeDlg" Control="Next" Event="NewDialog" Value="MaintenanceTypeDlg">1</Publish>
-      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
-      <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
-      <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg">1</Publish>
+      <Publish Dialog="MaintenanceWelcomeDlg" Control="Next" Event="NewDialog" Value="TrayLeafMaintenanceTypeDlg">1</Publish>
+      <Publish Dialog="TrayLeafMaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg">1</Publish>
     </UI>
     <UIRef Id="WixUI_Common" />
   </Product>
