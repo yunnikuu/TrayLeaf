@@ -16,7 +16,7 @@ try{
  Check 'launch-hidden-for-uninstall' (@($condition|Where-Object{$_[0] -eq 'Hide' -and $_[1] -eq 'REMOVE~="ALL"'}).Count -eq 1)
  $binary=@(Rows 'SELECT `Name` FROM `Binary` WHERE `Name`=''TrayLeafExitSidebar''' 1);Check 'cropped-sidebar-art-is-embedded' ($binary.Count -eq 1)
  $events=@(Rows 'SELECT `Event`,`Argument` FROM `ControlEvent` WHERE `Dialog_`=''TrayLeafExitDialog''' 2)
- Check 'no-dialog-initialization-custom-action-or-delay' (@($events|Where-Object{$_[0] -eq 'DoAction' -and $_[1] -notin @('PlaceDesktopShortcutAtEnd','LaunchOnFinish')}).Count -eq 0)
+ Check 'no-dialog-initialization-custom-action-or-delay' (@($events|Where-Object{$_[0] -eq 'DoAction' -and $_[1] -notin @('LaunchOnFinish')}).Count -eq 0)
  # Model install/reinstall/removal visibility. Fail on unrecognized conditions.
  $allConditions=@(Rows 'SELECT `Control_`,`Action`,`Condition` FROM `ControlCondition` WHERE `Dialog_`=''TrayLeafExitDialog''' 3)
  function IsVisible($control,[bool]$removing){

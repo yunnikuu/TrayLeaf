@@ -4,8 +4,8 @@ function Check($n,$b){if($b){$script:pass++;"PASS $n"}else{$script:fail++;"FAIL 
 $ins=New-Object -ComObject WindowsInstaller.Installer;$db=$ins.OpenDatabase([IO.Path]::GetFullPath($MsiPath),0)
 function Rows($sql,$n){$v=$db.OpenView($sql);try{$v.Execute()|Out-Null;while($r=$v.Fetch()){$row=@();for($i=1;$i -le $n;$i++){$row+=$r.StringData($i)};Write-Output -NoEnumerate $row}}finally{$v.Close()|Out-Null}}
 $p=@{};foreach($r in (Rows 'SELECT `Property`,`Value` FROM `Property`' 2)){$p[$r[0]]=$r[1]}
-Check 'release-identity-preserved' ($p.TRAYLEAF_RELEASE_VERSION -eq '1.0.1')
-Check 'msi-numeric-version-compatible' ($p.ProductVersion -eq '1.0.1')
+Check 'release-identity-preserved' ($p.TRAYLEAF_RELEASE_VERSION -eq '1.1.0')
+Check 'msi-numeric-version-compatible' ($p.ProductVersion -eq '1.1.0')
 Check 'upgrade-identity-preserved' ($p.UpgradeCode -eq '{49F5C6BF-41D9-5CF1-8FFA-917E45CCB2DC}')
 $controls=@(Rows 'SELECT `Dialog_`,`Control`,`Type`,`Text` FROM `Control`' 4)
 $c=@($controls|Where-Object{$_[0] -eq 'TrayLeafMaintenanceTypeDlg'})
@@ -24,7 +24,8 @@ $ca=@(Rows 'SELECT `Action`,`Type`,`Source`,`Target` FROM `CustomAction`' 4);$cl
 Check 'native-deferred-nonimpersonated-cleanup' ($clean.Count -eq 1 -and [int]$clean[0][1] -band 1024 -and [int]$clean[0][1] -band 2048 -and $clean[0][2] -eq 'ShutdownHelperBinary' -and $clean[0][3] -eq '--remove-startup "[UserSID]"')
 $ui=@(Rows 'SELECT `Action`,`Condition`,`Sequence` FROM `InstallUISequence`' 3)
 Check 'desktop-position-captured-before-install' (@($ui|Where-Object{$_[0] -eq 'CaptureDesktopShortcut'}).Count -eq 1)
-Check 'finish-placement-skips-uninstall' (@($events|Where-Object{$_[2] -eq 'DoAction' -and $_[3] -eq 'PlaceDesktopShortcutAtEnd' -and $_[4] -match 'NOT REMOVE'}).Count -eq 1)
+$publish=@(Rows 'SELECT `Action`,`Condition` FROM `InstallExecuteSequence` WHERE `Action`=''PublishDesktopShortcut''' 2)
+Check 'publication-skips-uninstall' ($publish.Count -eq 1 -and $publish[0][1] -match 'NOT REMOVE')
 Check 'launch-skips-uninstall' (@($events|Where-Object{$_[2] -eq 'DoAction' -and $_[3] -eq 'LaunchOnFinish' -and $_[4] -match 'NOT REMOVE'}).Count -eq 1)
 if($ReportPath){$p|ConvertTo-Json|Set-Content -LiteralPath $ReportPath -Encoding UTF8}
 "RESULT passed=$pass failed=$fail";if($fail){exit 1}

@@ -50,7 +50,7 @@ class IconTests {
  Call(c,"CreateTray");var tray=Field(c,"tray") as Forms.NotifyIcon;var icon=Field(c,"trayIcon") as System.Drawing.Icon;
  Check("notify-icon-is-visible",tray!=null&&tray.Visible&&tray.Icon!=null);
  using(var expected=new System.Drawing.Icon(args[0],Forms.SystemInformation.SmallIconSize)){Check("tray-icon-matches-approved-artwork",icon!=null&&IconPixels(icon).SequenceEqual(IconPixels(expected)));}
- w.Close();Idle(w);Check("hide-to-tray-preserves-identity",!w.IsVisible&&tray.Visible&&Pixels(w.Icon as BitmapSource)==Pixels(Ico(args[0])));Call(c,"Show");Idle(w);Check("reopen-retains-approved-logo",w.IsVisible&&logo!=null&&logo.Source!=null);
+ db.Set("closeWindowPrompt","0");db.Set("closeWindowMinimize","1");w.Close();Idle(w);Check("hide-to-tray-preserves-identity",!w.IsVisible&&tray.Visible&&Pixels(w.Icon as BitmapSource)==Pixels(Ico(args[0])));Call(c,"Show");Idle(w);Check("reopen-retains-approved-logo",w.IsVisible&&logo!=null&&logo.Source!=null);
  var content=(FrameworkElement)w.Content;var bitmap=new RenderTargetBitmap((int)content.ActualWidth,(int)content.ActualHeight,96,96,PixelFormats.Pbgra32);bitmap.Render(content);var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));using(var f=File.Create(Path.Combine(output,"icon-ui-preview.png")))encoder.Save(f);
  Call(c,"Exit");Check("tray-icon-hidden-on-explicit-exit",!tray.Visible);c=null;w=null;
  }catch(Exception ex){Console.Error.WriteLine(ex);failed++;}finally{if(c!=null)try{Call(c,"Exit");}catch{}if(db!=null)db.Dispose();}

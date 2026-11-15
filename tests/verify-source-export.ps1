@@ -4,7 +4,9 @@ function Check($n,$ok){if($ok){$script:pass++;"PASS $n"}else{$script:fail++;"FAI
 $root=[IO.Path]::GetFullPath($RepositoryPath)
 $policyPath=Join-Path $root 'source-export.json'
 Check 'export-policy-present' (Test-Path -LiteralPath $policyPath)
-if(!(Test-Path -LiteralPath $policyPath)){"RESULT passed=$pass failed=$fail";exit 1}
+if(!(Test-Path -LiteralPath $policyPath)){Check 'release-summary-policy-has-no-nested-file-entries' (@($policy.release_changes.changes|Where-Object{$_.path -match '[\\/]' -or $_.path -in @('.','..')}).Count -eq 0)
+Check 'release-summary-policy-is-bilingual' (@($policy.release_changes.changes|Where-Object{!$_.change -or !$_.change_zh}).Count -eq 0)
+"RESULT passed=$pass failed=$fail";exit 1}
 $policy=Get-Content -LiteralPath $policyPath -Raw -Encoding UTF8|ConvertFrom-Json
 $tests=@(Get-ChildItem -LiteralPath (Join-Path $root 'tests') -File|ForEach-Object Name)
 Check 'export-helper-present' (Test-Path -LiteralPath (Join-Path $root 'export-source.ps1'))
@@ -21,6 +23,8 @@ $missing=@();foreach($p in Get-ChildItem -LiteralPath (Join-Path $root 'tests') 
 }
 Check 'retained-test-local-dependencies-present' ($missing.Count -eq 0)
 if($missing.Count){$missing|ForEach-Object{"MISSING $_"}}
-$bad=@(Get-ChildItem -LiteralPath $root -Recurse -File|Where-Object{$rel=$_.FullName.Substring($root.Length+1);$rel -match '(^|\\)docs(\\|$)' -or ($_.Extension -eq '.md' -and $rel -ne 'CHANGELOG.md') -or $_.Extension -in @('.exe','.msi','.zip','.db','.sha256','.obj','.lib','.exp')})
+$bad=@(Get-ChildItem -LiteralPath $root -Recurse -File|Where-Object{$rel=$_.FullName.Substring($root.Length+1);$rel -match '(^|\\)docs(\\|$)' -or $_.Extension -eq '.md' -or $_.Name -like 'commit-changes*.json' -or $_.Extension -in @('.exe','.msi','.zip','.db','.sha256','.obj','.lib','.exp')})
 Check 'source-export-has-no-local-or-forbidden-artifacts' ($bad.Count -eq 0)
+Check 'release-summary-policy-has-no-nested-file-entries' (@($policy.release_changes.changes|Where-Object{$_.path -match '[\\/]' -or $_.path -in @('.','..')}).Count -eq 0)
+Check 'release-summary-policy-is-bilingual' (@($policy.release_changes.changes|Where-Object{!$_.change -or !$_.change_zh}).Count -eq 0)
 "RESULT passed=$pass failed=$fail";if($fail){exit 1};exit 0
