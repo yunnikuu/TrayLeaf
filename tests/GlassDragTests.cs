@@ -1,4 +1,4 @@
-﻿using System;using System.Collections.Generic;using System.Diagnostics;using System.Linq;using System.Runtime.InteropServices;using System.Threading;using System.Windows;using System.Windows.Controls;using System.Windows.Interop;using System.Windows.Media;using System.Windows.Threading;using TrayLeaf;
+using System;using System.Collections.Generic;using System.Diagnostics;using System.Linq;using System.Runtime.InteropServices;using System.Threading;using System.Windows;using System.Windows.Controls;using System.Windows.Interop;using System.Windows.Media;using System.Windows.Threading;using TrayLeaf;
 class GlassDragTests {
  static Stopwatch clock=Stopwatch.StartNew();static Dictionary<int,double> colors=new Dictionary<int,double>();static int passed,failed;static void Check(bool ok,string n){Console.WriteLine((ok?"PASS ":"FAIL ")+n);if(ok)passed++;else failed++;}
  static void Pump(int ms){var f=new DispatcherFrame();var t=new DispatcherTimer(DispatcherPriority.Send){Interval=TimeSpan.FromMilliseconds(ms)};t.Tick+=delegate{t.Stop();f.Continue=false;};t.Start();Dispatcher.PushFrame(f);}

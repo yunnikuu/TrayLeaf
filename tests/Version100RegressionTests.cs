@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -21,7 +21,7 @@ class Version100RegressionTests {
  static bool ColorIs(Window w,string key,string hex){return ((SolidColorBrush)w.Resources[key]).Color==(Color)ColorConverter.ConvertFromString(hex);}
  [STAThread]static int Main(string[] a){try{work=a[0];source=a[1];Directory.CreateDirectory(work);var app=new Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};Window w;using(var st=typeof(Entry).Assembly.GetManifestResourceStream("TrayLeaf.MainWindow.xaml"))w=(Window)System.Windows.Markup.XamlReader.Load(st);w.ShowActivated=false;w.Left=-10000;w.Top=-10000;
  using(var db=new Database(Path.Combine(work,Guid.NewGuid().ToString("N")+".db"))){var c=new Controller(app,w,db,true);c.Start(null);SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(w.Dispatcher));Pump(150);
- Check("version-100-regression",typeof(Entry).Assembly.GetName().Version.ToString()=="1.0.0.3");
+ Check("version-100-regression",typeof(Entry).Assembly.GetName().Version.ToString()=="1.0.1.0");
  string installer=File.ReadAllText(Path.Combine(source,"installer/TrayLeaf.wxs"));Check("fast-msi-preparation",installer.Contains("Id=\"MSIFASTINSTALL\" Value=\"1\""));Check("msi-rollback-and-disk-cost-retained",!installer.Contains("DISABLEROLLBACK")&&!installer.Contains("Id=\"MSIFASTINSTALL\" Value=\"7\""));
  Check("classic-first-launch-palette",ColorIs(w,"Canvas","#F3F6F5")&&ColorIs(w,"Surface","#FFFFFF")&&ColorIs(w,"Sidebar","#EDF2EF")&&ColorIs(w,"Text","#1E302A"));
  var accent=(ComboBox)w.FindName("AccentInput");var tint=(ComboBox)w.FindName("WindowTintInput");Check("classic-default-options",accent.SelectedIndex==0&&tint.SelectedIndex==0&&((ComboBoxItem)accent.Items[0]).Content.ToString().Contains("默认")&&((ComboBoxItem)tint.Items[0]).Content.ToString().Contains("默认"));

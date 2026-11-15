@@ -11,8 +11,8 @@ namespace TrayLeaf {
   CancellationTokenSource automaticUpdate;bool updateDisposed;
   void Setup097(){
    Get<ComboBox>("WindowTintInput").SelectedIndex=(int)Number("windowTint",0,0,ThemeManager.Accents.Length-1);Get<ComboBox>("WindowTintInput").SelectionChanged+=delegate{PreviewAppearance();};
-   Get<CheckBox>("AutoCheckUpdateInput").IsChecked=Setting("autoCheckUpdates",true);Get<CheckBox>("AutoCheckUpdateInput").Unchecked+=delegate{if(automaticUpdate!=null)automaticUpdate.Cancel();};
-   Click("ChangeDataButton",ChangeDataDirectory);Click("ManageCustomButton",ManageCustom);Click("NewVersionBadge",delegate{Navigate(3);if(releaseUrl!=null){Text("UpdateStatus","发现新版本，可前往发布页下载");Get<TextBlock>("UpdateStatus").Visibility=Visibility.Visible;Get<Button>("OpenReleaseButton").Visibility=Visibility.Visible;}});
+   Get<CheckBox>("AutoCheckUpdateInput").IsChecked=Setting("autoCheckUpdates",true);Get<CheckBox>("AutoCheckUpdateInput").Unchecked+=delegate{if(automaticUpdate!=null)automaticUpdate.Cancel();};Get<CheckBox>("AutoCheckUpdateInput").Checked+=delegate{if(!initializing)CheckAutoUpdates();};
+   Click("ChangeDataButton",ChangeDataDirectory);Click("ManageCustomButton",ManageCustom);Click("NewVersionBadge",delegate{Navigate(3);if(releaseUrl!=null){Text("UpdateStatus","发现新版本，可点击下载最新版");Get<TextBlock>("UpdateStatus").Visibility=Visibility.Visible;Get<Button>("OpenReleaseButton").Visibility=Visibility.Visible;}});
    ScrollActivity.Attach(Get<ScrollViewer>("SettingsPanel"));ScrollActivity.Attach(Get<DataGrid>("ProcessGrid"));ScrollActivity.Attach(Get<DataGrid>("RestoreGrid"));
    w.Closed+=delegate{updateDisposed=true;if(automaticUpdate!=null)automaticUpdate.Cancel();};UpdateCustomCount();PreviewAppearance();
   }
@@ -23,7 +23,18 @@ namespace TrayLeaf {
    string marker=demo||Environment.GetCommandLineArgs().Contains("--db")?Path.Combine(Path.GetDirectoryName(db.FilePath),"data-location.preview.txt"):DataLocation.Marker;SetBusy(true);Get<Button>("ChangeDataButton").IsEnabled=false;Get<Button>("ManageCustomButton").IsEnabled=false;
    try{await Task.Run(()=>db.Relocate(directory,marker));Text("DbPathText",db.FilePath);Status("数据目录已更改，历史、配置和设置已迁移；原数据库保留");}finally{SetBusy(false);Get<Button>("ChangeDataButton").IsEnabled=true;Get<Button>("ManageCustomButton").IsEnabled=true;}
   }catch(Exception ex){Error(ex);}}
-  async void CheckAutoUpdates(){if(demo||!UpdatePolicy.ShouldCheck(db,DateTime.Now))return;UpdatePolicy.MarkAttempt(db,DateTime.Now);automaticUpdate=new CancellationTokenSource();var token=automaticUpdate.Token;try{string tag=await UpdateService.Latest(token);if(!updateDisposed&&!token.IsCancellationRequested&&Get<CheckBox>("AutoCheckUpdateInput").IsChecked==true)PresentUpdate(tag);}catch{ /* Automatic checks stay quiet on timeout, offline or cancellation. */ }finally{automaticUpdate.Dispose();automaticUpdate=null;}}
-  void PresentUpdate(string tag){if(downloadButton!=null&&UpdateService.IsNewer(tag,AppIdentity.ReleaseVersion))downloadButton.Visibility=Visibility.Visible;if(!UpdateService.IsNewer(tag,AppIdentity.ReleaseVersion))return;releaseUrl=UpdateService.ProjectUrl+"/releases/tag/"+Uri.EscapeDataString(tag);Get<Button>("NewVersionBadge").Visibility=Visibility.Visible;}
+  void CheckAutoUpdates(){if(demo||!UpdatePolicy.ShouldCheck(db,DateTime.Now))return;
+   // Start is called before Application.Run; dispatch after WPF has installed its UI context.
+   w.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background,new Action(async delegate{if(!updateDisposed&&Get<CheckBox>("AutoCheckUpdateInput").IsChecked==true)await CheckForUpdates(true);}));
+  }
+  void PresentUpdate(string tag){
+   bool newer=UpdateService.IsNewer(tag,AppIdentity.ReleaseVersion);
+   releaseUrl=newer?UpdateService.ProjectUrl+"/releases/tag/"+Uri.EscapeDataString(tag):null;
+   Get<Button>("NewVersionBadge").Visibility=newer?Visibility.Visible:Visibility.Collapsed;
+   Get<Button>("NewVersionBadge").ToolTip=UiLanguage.Text("发现新版本 ")+tag;
+   if(downloadButton!=null)downloadButton.Visibility=newer?Visibility.Visible:Visibility.Collapsed;
+   Get<Button>("DownloadLatestButton").Visibility=newer?Visibility.Visible:Visibility.Collapsed;
+   Get<Button>("OpenReleaseButton").Visibility=newer?Visibility.Visible:Visibility.Collapsed;
+  }
  }
 }

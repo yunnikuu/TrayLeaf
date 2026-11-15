@@ -1,16 +1,16 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-[assembly: System.Reflection.AssemblyVersion("1.0.0.3")]
-[assembly: System.Reflection.AssemblyFileVersion("1.0.0.3")]
-[assembly: System.Reflection.AssemblyInformationalVersion("1.0.0-fix3")]
+[assembly: System.Reflection.AssemblyVersion("1.0.1.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.0.1.0")]
+[assembly: System.Reflection.AssemblyInformationalVersion("1.0.1")]
 namespace TrayLeaf {
  // Decode once; OnLoad and Freeze release streams and share small immutable images.
  internal static class AppIdentity {
-  internal const string ReleaseVersion="1.0.0-fix3";
+  internal const string ReleaseVersion="1.0.1";
   static BitmapSource windowIcon,brandImage;
   static Stream Open(string name) {
    var stream=Assembly.GetExecutingAssembly().GetManifestResourceStream("TrayLeaf.Assets."+name);

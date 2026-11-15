@@ -15,7 +15,7 @@ Check 'desktop-existing-position-not-moved-to-tail' ($cpp -match 'TRAYLEAF_DESKT
 Check 'glass-has-off-thread-desktop-sampler' (Test-Path -LiteralPath $glass)
 Check 'rounding-uses-native-physical-window-size' ($chrome -match 'GetWindowRect')
 Check 'single-custom-corner-policy' ($chrome.Contains('CornerRadius=new CornerRadius(0)'))
-Check 'display-release-fix3' ([IO.File]::ReadAllText((Join-Path $SourcePath 'src\AppIdentity.cs')).Contains('AssemblyInformationalVersion("1.0.0-fix3")'))
+Check 'display-release-101' ([IO.File]::ReadAllText((Join-Path $SourcePath 'src\AppIdentity.cs')).Contains('AssemblyInformationalVersion("1.0.1")'))
 Check 'per-pixel-transparent-window' ([IO.File]::ReadAllText((Join-Path $SourcePath 'src\MainWindow.xaml')).Contains('AllowsTransparency="True"'))
 Check 'content-sized-close-prompt' (Test-Path -LiteralPath (Join-Path $SourcePath 'src\CloseWindowDialog.cs'))
 "RESULT passed=$pass failed=$fail";if($fail){exit 1}
