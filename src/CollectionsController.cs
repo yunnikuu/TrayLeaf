@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Threading;
@@ -15,7 +15,7 @@ namespace TrayLeaf {
   void PinClosedRows(IEnumerable<AppRow> rows){var paths=new HashSet<string>(rows.Select(r=>r.Path??""),StringComparer.OrdinalIgnoreCase);foreach(var r in current)r.ClosePriority=paths.Contains(r.Path??"")?1:0;
    var grid=Get<DataGrid>("ProcessGrid");HistoryPresentation.ApplyOrder(grid);grid.Dispatcher.BeginInvoke(new Action(()=>{if(grid.Items.Count>0)grid.ScrollIntoView(grid.Items[0]);}),DispatcherPriority.Loaded);
   }
-  void CompleteClose(long batch,int done,int total){db.Prune();ReloadHistory(batch);ReloadCollections();var failed=ops.History(batch).Where(r=>r.ItemStatus!="closed").Select(r=>r.Name).ToList();Status(CloseSummary(done,total)+(done<total&&failed.Count>0?"；未关闭："+String.Join("、",failed):""));}
+  void CompleteClose(long batch,int done,int total,int visit){db.Prune();ReloadHistory(batch);ReloadCollections();var failed=ops.History(batch).Where(r=>r.ItemStatus!="closed").Select(r=>r.Name).ToList();FinishCloseProgress(done,total,visit);VisitStatus(visit,CloseSummary(done,total)+(done<total&&failed.Count>0?"；未关闭："+String.Join("、",failed):""));}
   static string CloseSummary(int done,int total){return done==total?"共计 "+total+" 个程序，已全部关闭":"共计 "+total+" 个程序，已关闭 "+done+" 个，未关闭 "+(total-done)+" 个；请查看状态";}
   void SetupCollections(){
    HistoryPresentation.Configure(Get<DataGrid>("ProcessGrid"));HistoryPresentation.Configure(Get<DataGrid>("RestoreGrid"));
@@ -24,10 +24,8 @@ namespace TrayLeaf {
     ConfigureProfileSelection(Get<ComboBox>(prefix+"ProfileCombo"),()=>{if(!loadingCollections&&!busy)Guard(()=>ApplyProfile(captured));});
     Click("Save"+prefix+"ProfileButton",delegate{SaveProfile(captured,false,null);});
     Click("Edit"+prefix+"ProfileButton",delegate{SaveProfile(captured,true,null);});
-    Click("Apply"+prefix+"ProfileButton",delegate{ApplyProfile(captured);});
     Click("Delete"+prefix+"ProfileButton",delegate{DeleteProfile(captured);});
    }
-   Click("SaveCloseHistoryProfileButton",delegate{var set=Get<ComboBox>("CloseHistoryCombo").SelectedItem as SavedSet;if(set==null){Status("先选择一条关闭历史");return;}SaveProfile("close",false,db.LoadSet(set.Id));});
    Get<ComboBox>("CloseHistoryCombo").SelectionChanged+=delegate{if(loadingCollections||busy)return;Guard(delegate{var set=Get<ComboBox>("CloseHistoryCombo").SelectedItem as SavedSet;if(set!=null)ApplyCloseRows(db.LoadSet(set.Id),"关闭历史");});};
    ProgramPresentation.AttachMenus(Get<DataGrid>("ProcessGrid"),Status,row=>HideRows(new[]{row}),RenameMain);ProgramPresentation.AttachMenus(Get<DataGrid>("RestoreGrid"),Status,null,RenameMain,EditRestoreArgs);
    ReloadCollections();
@@ -44,10 +42,11 @@ namespace TrayLeaf {
   }finally{loadingCollections=false;}}
   void SaveProfile(string kind,bool edit,List<AppRow> supplied){if(busy)return;var combo=Get<ComboBox>(kind=="close"?"CloseProfileCombo":"RestoreProfileCombo");var selected=combo.SelectedItem as SavedSet;
    if(edit&&selected==null){Status("先选择要编辑的配置");return;}
-   var rows=edit?db.LoadSet(selected.Id):supplied??(kind=="close"?current:history);
-   if(rows.Count==0){Status("当前列表没有程序；请先添加程序或选择历史");return;}
-   var dialog=new ProfileEditor(w,kind,edit?selected.Name:"",rows,delegate(string name,List<AppRow> values){db.SaveProfile(kind,name,values,edit?selected.Id:0);});
-   if(dialog.ShowDialog()==true){ReloadCollections();Status("配置已保存，勾选状态、启动参数与管理员权限均已记录");}
+   var rows=edit?db.LoadSet(selected.Id):(supplied??(kind=="close"?current:history)).Where(r=>r.Selected).Select(ProgramPresentation.Copy).ToList();
+   if(rows.Count==0){Status("请先勾选要保存的程序");return;}long saved=edit?selected.Id:0;Window dialog;
+   if(edit)dialog=new ProfileEditor(w,kind,selected.Name,rows,delegate(string name,List<AppRow> values){saved=db.SaveProfile(kind,name,values,selected.Id);});
+   else dialog=new ProfileNameDialog(w,"",delegate(string name){saved=db.SaveProfile(kind,name,rows,0);});
+   if(dialog.ShowDialog()==true){ReloadCollections();loadingCollections=true;try{combo.SelectedItem=((System.Collections.IEnumerable)combo.ItemsSource).Cast<SavedSet>().FirstOrDefault(x=>x.Id==saved);}finally{loadingCollections=false;}ApplyProfile(kind);Selection();Status("配置已保存");}
   }
   void DeleteProfile(string kind){if(busy)return;var set=Get<ComboBox>(kind=="close"?"CloseProfileCombo":"RestoreProfileCombo").SelectedItem as SavedSet;if(set==null){Status("先选择要删除的配置");return;}
    if(!Ask("确定删除配置“"+set.Name+"”？\n此操作不能撤销，不会删除程序或历史记录","删除配置"))return;

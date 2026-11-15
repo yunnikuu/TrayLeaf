@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -50,7 +50,7 @@ namespace TrayLeaf {
     if(kind=="close")SyncProfileCore(id,name,entries);Execute("COMMIT");return id;
    }catch{Execute("ROLLBACK");throw;}}
   }
-  public List<SavedSet> ListSets(string kind){return Query("SELECT s.id,s.kind,s.name,s.created,COUNT(e.id) FROM saved_sets s LEFT JOIN saved_entries e ON s.id=e.set_id WHERE s.kind=? GROUP BY s.id ORDER BY s.id DESC",kind).Select(x=>new SavedSet{Id=Int64.Parse(x[0]),Kind=x[1],Name=x[2],Created=x[3],Count=Int32.Parse(x[4])}).ToList();}
+  public List<SavedSet> ListSets(string kind){return Query("SELECT s.id,s.kind,s.name,s.created,SUM(CASE WHEN e.id IS NOT NULL AND (s.kind LIKE 'history_%' OR e.chosen=1) THEN 1 ELSE 0 END) FROM saved_sets s LEFT JOIN saved_entries e ON s.id=e.set_id WHERE s.kind=? GROUP BY s.id ORDER BY s.id DESC",kind).Select(x=>new SavedSet{Id=Int64.Parse(x[0]),Kind=x[1],Name=x[2],Created=x[3],Count=Int32.Parse(x[4])}).ToList();}
   public List<AppRow> LoadSet(long id){return Query("SELECT name,path,args,admin,chosen,state FROM saved_entries WHERE set_id=? ORDER BY id",id.ToString()).Select(x=>new AppRow{Name=x[0],Path=x[1],ProcessName=Path.GetFileName(x[1]),Args=x[2],Admin=x[3]=="1",Selected=x[4]=="1",ItemStatus=x[5],ArgsKnown=true}).ToList();}
   public void DeleteProfile(string kind,long id){Kind(kind);Execute("DELETE FROM saved_sets WHERE id=? AND kind=?",id.ToString(),"profile_"+kind);}
   public void RememberLaunch(AppRow row){if(String.IsNullOrWhiteSpace(row.Path))return;lock(gate){Execute("BEGIN IMMEDIATE");try{
