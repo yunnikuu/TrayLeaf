@@ -1,4 +1,4 @@
-﻿#define UNICODE
+#define UNICODE
 #define _UNICODE
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -181,49 +181,59 @@ int WINAPI wWinMain(HINSTANCE,HINSTANCE,PWSTR,int){
 }
 #endif
 
-// Desktop ordering belongs to Explorer. Move only our new shortcut, and never
-// disable auto-arrange, change sort rules, or reposition any other desktop item.
+// Save independently of Explorer. When the view is available, position before redraw.
 #ifndef TRAYLEAF_HELPER
 #include <shlobj.h>
 #include <shobjidl.h>
 #include <exdisp.h>
 #include <servprov.h>
-#include <limits.h>
 #include <shlwapi.h>
 #include "DesktopPlacement.h"
-extern "C" __declspec(dllexport) UINT __stdcall PlaceDesktopShortcutAtEnd(MSIHANDLE session);
-extern "C" __declspec(dllexport) UINT __stdcall CaptureDesktopShortcut(MSIHANDLE session){
- wchar_t path[MAX_PATH];bool existed=false;
- for(int id:{CSIDL_DESKTOPDIRECTORY,CSIDL_COMMON_DESKTOPDIRECTORY})if(SUCCEEDED(SHGetFolderPathW(NULL,id,NULL,SHGFP_TYPE_CURRENT,path))){std::wstring link=std::wstring(path)+L"\\轻羽归栈.lnk";if(GetFileAttributesW(link.c_str())!=INVALID_FILE_ATTRIBUTES)existed=true;}
- MsiSetPropertyW(session,L"TRAYLEAF_DESKTOP_EXISTS",existed?L"1":L"0");
- if(!existed)return ERROR_SUCCESS;MsiSetPropertyW(session,L"TRAYLEAF_CAPTURE_DESKTOP",L"1");
- UINT result=PlaceDesktopShortcutAtEnd(session);MsiSetPropertyW(session,L"TRAYLEAF_CAPTURE_DESKTOP",L"");return result;
-}
-
-extern "C" __declspec(dllexport) UINT __stdcall PlaceDesktopShortcutAtEnd(MSIHANDLE session){
- bool capture=Property(session,L"TRAYLEAF_CAPTURE_DESKTOP")==L"1";bool existed=Property(session,L"TRAYLEAF_DESKTOP_EXISTS")==L"1";
- if(!capture&&DesktopPlacementPolicy(existed,!Property(session,L"TRAYLEAF_DESKTOP_X").empty(),false)==DesktopPlacementMode::Keep){Log(session,L"Existing shortcut retained; previous position unavailable");return ERROR_SUCCESS;}
+#include "DesktopShortcut.h"
+static UINT DesktopShortcutOperation(MSIHANDLE session,bool capture){
  HRESULT init=CoInitializeEx(NULL,COINIT_APARTMENTTHREADED);bool uninit=SUCCEEDED(init);
- IShellWindows* windows=NULL;IDispatch* desktop=NULL;IServiceProvider* provider=NULL;IShellBrowser* browser=NULL;IShellView* view=NULL;IFolderView2* folderView=NULL;IShellFolder* folder=NULL;IEnumIDList* items=NULL;PIDLIST_RELATIVE target=NULL;
- try{HRESULT hr=CoCreateInstance(CLSID_ShellWindows,NULL,CLSCTX_LOCAL_SERVER,IID_PPV_ARGS(&windows));if(FAILED(hr))throw hr;
- VARIANT empty;VariantInit(&empty);long hwnd=0;hr=windows->FindWindowSW(&empty,&empty,SWC_DESKTOP,&hwnd,SWFO_NEEDDISPATCH,&desktop);if(FAILED(hr)||!desktop)throw E_FAIL;
- if(FAILED(desktop->QueryInterface(IID_PPV_ARGS(&provider))))throw E_NOINTERFACE;
- if(FAILED(provider->QueryService(SID_STopLevelBrowser,IID_PPV_ARGS(&browser))))throw E_NOINTERFACE;
- if(FAILED(browser->QueryActiveShellView(&view)))throw E_NOINTERFACE;
- if(FAILED(view->QueryInterface(IID_PPV_ARGS(&folderView))))throw E_NOINTERFACE;
- DWORD flags;if(FAILED(folderView->GetCurrentFolderFlags(&flags))||(flags&FWF_AUTOARRANGE)){Log(session,L"Desktop auto-arrange enabled: keeping Explorer ordering");throw S_FALSE;}
- if(FAILED(folderView->GetFolder(IID_PPV_ARGS(&folder))))throw E_NOINTERFACE;
- if(FAILED(folderView->Items(SVGIO_ALLVIEW,IID_PPV_ARGS(&items))))throw E_NOINTERFACE;
- wchar_t desktopPath[MAX_PATH];if(FAILED(SHGetFolderPathW(NULL,CSIDL_DESKTOPDIRECTORY,NULL,SHGFP_TYPE_CURRENT,desktopPath)))throw E_FAIL;
- std::wstring wanted=Full(std::wstring(desktopPath)+L"\\轻羽归栈.lnk");std::vector<POINT> points;POINT old={};bool positionValid=false;PIDLIST_RELATIVE item=NULL;
- while(items->Next(1,&item,NULL)==S_OK){STRRET name;wchar_t path[32768];POINT p;if(SUCCEEDED(folder->GetDisplayNameOf(item,SHGDN_FORPARSING,&name))&&SUCCEEDED(StrRetToBufW(&name,item,path,32768))&&Same(Full(path),wanted)){target=ILClone(item);positionValid=SUCCEEDED(folderView->GetItemPosition(item,&old));}else if(SUCCEEDED(folderView->GetItemPosition(item,&p)))points.push_back(p);CoTaskMemFree(item);item=NULL;}
- if(!target){Log(session,L"Desktop shortcut not yet visible; retaining Explorer position");throw S_FALSE;}
- if(capture){if(!positionValid)throw S_FALSE;MsiSetPropertyW(session,L"TRAYLEAF_DESKTOP_X",std::to_wstring(old.x).c_str());MsiSetPropertyW(session,L"TRAYLEAF_DESKTOP_Y",std::to_wstring(old.y).c_str());throw S_FALSE;}
- if(existed){POINT saved={_wtol(Property(session,L"TRAYLEAF_DESKTOP_X").c_str()),_wtol(Property(session,L"TRAYLEAF_DESKTOP_Y").c_str())};PCUITEMID_CHILD id=target;hr=folderView->SelectAndPositionItems(1,&id,&saved,SVSI_POSITIONITEM);Log(session,L"Restored existing TrayLeaf shortcut position");throw S_FALSE;}
- POINT spacing;HWND viewHandle=NULL;RECT client={};if(FAILED(folderView->GetSpacing(&spacing))||FAILED(view->GetWindow(&viewHandle))||!GetClientRect(viewHandle,&client))throw E_FAIL;
- POINT next;if(!DesktopTailPosition(points,spacing,client.right,client.bottom,next)){Log(session,L"No free tail slot; retaining existing icon positions");throw S_FALSE;}
- PCUITEMID_CHILD id=target;hr=folderView->SelectAndPositionItems(1,&id,&next,SVSI_POSITIONITEM);Log(session,SUCCEEDED(hr)?L"Moved only TrayLeaf shortcut to desktop tail":L"Explorer declined desktop positioning");
- }catch(...){/* Best effort, never fail a successful installation. */}
- if(target)CoTaskMemFree(target);if(items)items->Release();if(folder)folder->Release();if(folderView)folderView->Release();if(view)view->Release();if(browser)browser->Release();if(provider)provider->Release();if(desktop)desktop->Release();if(windows)windows->Release();if(uninit)CoUninitialize();return ERROR_SUCCESS;
+ std::wstring wanted,dir=Property(session,L"INSTALLFOLDER"),exe;bool saved=false,existed=false;HRESULT failure=S_OK;
+ if(!dir.empty()&&dir.back()!=L'\\')dir+=L"\\";exe=dir+L"TrayLeaf.exe";
+ IShellWindows* windows=NULL;IDispatch* desktop=NULL;IServiceProvider* provider=NULL;IShellBrowser* browser=NULL;IShellView* view=NULL;IFolderView2* folderView=NULL;IShellFolder* folder=NULL;IEnumIDList* items=NULL;IShellFolderView* legacy=NULL;PIDLIST_ABSOLUTE absolute=NULL;
+ try{wchar_t desktopPath[MAX_PATH];if(FAILED(SHGetFolderPathW(NULL,CSIDL_DESKTOPDIRECTORY,NULL,SHGFP_TYPE_CURRENT,desktopPath)))throw E_FAIL;
+ wanted=Full(std::wstring(desktopPath)+L"\\轻羽归栈.lnk");
+ existed=GetFileAttributesW(wanted.c_str())!=INVALID_FILE_ATTRIBUTES;
+ if(capture)MsiSetPropertyW(session,L"TRAYLEAF_DESKTOP_EXISTS",existed?L"1":L"0");
+ HRESULT hr=CoCreateInstance(CLSID_ShellWindows,NULL,CLSCTX_LOCAL_SERVER,IID_PPV_ARGS(&windows));if(FAILED(hr))throw hr;
+ VARIANT empty;VariantInit(&empty);long hwnd=0;if(FAILED(windows->FindWindowSW(&empty,&empty,SWC_DESKTOP,&hwnd,SWFO_NEEDDISPATCH,&desktop))||!desktop)throw E_FAIL;
+ if(FAILED(desktop->QueryInterface(IID_PPV_ARGS(&provider)))||FAILED(provider->QueryService(SID_STopLevelBrowser,IID_PPV_ARGS(&browser)))||FAILED(browser->QueryActiveShellView(&view))||FAILED(view->QueryInterface(IID_PPV_ARGS(&folderView)))||FAILED(folderView->GetFolder(IID_PPV_ARGS(&folder)))||FAILED(folderView->Items(SVGIO_ALLVIEW,IID_PPV_ARGS(&items))))throw E_NOINTERFACE;
+ DWORD flags=0;if(FAILED(folderView->GetCurrentFolderFlags(&flags)))throw E_FAIL;
+ std::vector<POINT> points;POINT old={};bool positionValid=false;PIDLIST_RELATIVE item=NULL;
+ while(items->Next(1,&item,NULL)==S_OK){STRRET name;wchar_t path[32768];POINT p;
+ bool ours=SUCCEEDED(folder->GetDisplayNameOf(item,SHGDN_FORPARSING,&name))&&SUCCEEDED(StrRetToBufW(&name,item,path,32768))&&Same(Full(path),wanted);
+ if(ours)positionValid=SUCCEEDED(folderView->GetItemPosition(item,&old));else if(SUCCEEDED(folderView->GetItemPosition(item,&p)))points.push_back(p);
+ CoTaskMemFree(item);item=NULL;}
+ if(capture){MsiSetPropertyW(session,L"TRAYLEAF_DESKTOP_EXISTS",existed?L"1":L"0");if(positionValid){MsiSetPropertyW(session,L"TRAYLEAF_DESKTOP_X",std::to_wstring(old.x).c_str());MsiSetPropertyW(session,L"TRAYLEAF_DESKTOP_Y",std::to_wstring(old.y).c_str());}throw S_FALSE;}
+ POINT desired=old;bool place=positionValid;
+ if(!Property(session,L"TRAYLEAF_DESKTOP_X").empty()){desired={_wtol(Property(session,L"TRAYLEAF_DESKTOP_X").c_str()),_wtol(Property(session,L"TRAYLEAF_DESKTOP_Y").c_str())};place=true;}
+ else if(!existed){POINT spacing;HWND handle=NULL;RECT client={};if(SUCCEEDED(folderView->GetSpacing(&spacing))&&SUCCEEDED(view->GetWindow(&handle))&&GetClientRect(handle,&client))place=DesktopTailPosition(points,spacing,client.right,client.bottom,desired);}
+ // User-selected automatic arrangement owns ordering; do not change that preference.
+ if(flags&FWF_AUTOARRANGE)place=false;
+ // Legacy positioning is optional; a missing Explorer interface cannot prevent creation.
+ if(!existed)view->QueryInterface(IID_PPV_ARGS(&legacy));
+ bool ok=DesktopPublishAtomically([&](bool enabled){return SUCCEEDED(folderView->SetRedraw(enabled?TRUE:FALSE));},[&](){
+  failure=SaveDesktopShortcut(wanted.c_str(),exe.c_str(),dir.c_str());saved=SUCCEEDED(failure);return saved;
+ },[&](){
+  absolute=ILCreateFromPathW(wanted.c_str());if(!absolute)return false;
+  if(!existed&&legacy){UINT index=0;legacy->AddObject(ILFindLastID(absolute),&index);}
+  if(!place)return true;PCUITEMID_CHILD id=ILFindLastID(absolute);
+  return SUCCEEDED(folderView->SelectAndPositionItems(1,&id,&desired,SVSI_POSITIONITEM));
+ });
+ Log(session,ok?L"Desktop shortcut saved; desktop positioning is best effort":L"Desktop shortcut save failed");
+ }catch(HRESULT hr){failure=hr;if(!capture)Log(session,L"Desktop positioning unavailable, HRESULT="+std::to_wstring((long)hr)+L"; creating shortcut independently");}
+ catch(...){failure=E_FAIL;if(!capture)Log(session,L"Desktop positioning unavailable; creating shortcut independently");}
+ if(!capture&&!saved&&!wanted.empty()){
+  failure=SaveDesktopShortcut(wanted.c_str(),exe.c_str(),dir.c_str());saved=SUCCEEDED(failure);
+  Log(session,saved?L"Desktop shortcut fallback saved successfully":L"Desktop shortcut fallback save failed, HRESULT="+std::to_wstring((long)failure));
+ }
+ if(!capture&&saved)SHChangeNotify(existed?SHCNE_UPDATEITEM:SHCNE_CREATE,SHCNF_PATHW,wanted.c_str(),NULL);
+ if(absolute)CoTaskMemFree(absolute);if(legacy)legacy->Release();if(items)items->Release();if(folder)folder->Release();if(folderView)folderView->Release();if(view)view->Release();if(browser)browser->Release();if(provider)provider->Release();if(desktop)desktop->Release();if(windows)windows->Release();if(uninit)CoUninitialize();return capture||saved?ERROR_SUCCESS:ERROR_INSTALL_FAILURE;
 }
+extern "C" __declspec(dllexport) UINT __stdcall CaptureDesktopShortcut(MSIHANDLE session){return DesktopShortcutOperation(session,true);}
+extern "C" __declspec(dllexport) UINT __stdcall PublishDesktopShortcut(MSIHANDLE session){return DesktopShortcutOperation(session,false);}
 #endif

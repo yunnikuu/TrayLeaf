@@ -15,3 +15,12 @@ inline bool DesktopTailPosition(const std::vector<POINT>& items,POINT spacing,LO
 // Existing shortcuts never enter the tail-placement branch, even if coordinate capture failed.
 enum class DesktopPlacementMode { Keep, Restore, Tail };
 static DesktopPlacementMode DesktopPlacementPolicy(bool existed,bool hasPosition,bool autoArrange){return autoArrange?DesktopPlacementMode::Keep:existed?(hasPosition?DesktopPlacementMode::Restore:DesktopPlacementMode::Keep):DesktopPlacementMode::Tail;}
+
+// Placement and repaint are best effort. A saved shortcut must survive either failure.
+template<class Redraw,class Publish,class Position>
+bool DesktopPublishAtomically(Redraw redraw,Publish publish,Position position){
+ bool guarded=redraw(false),saved=false;
+ try{saved=publish();if(saved&&guarded)position();}catch(...){if(guarded)redraw(true);throw;}
+ if(guarded)redraw(true);
+ return saved;
+}
