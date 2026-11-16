@@ -1,12 +1,12 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-  <Product Id="*" Name="轻羽归栈 TrayLeaf" Language="2052" Version="1.1.0" Manufacturer="TrayLeaf" UpgradeCode="{49F5C6BF-41D9-5CF1-8FFA-917E45CCB2DC}" Codepage="936">
+  <Product Id="*" Name="轻羽归栈 TrayLeaf" Language="2052" Version="1.1.1" Manufacturer="TrayLeaf" UpgradeCode="{49F5C6BF-41D9-5CF1-8FFA-917E45CCB2DC}" Codepage="936">
     <!-- Elevated engine can update rollback-file security on protected/custom drives.
          Do not set ALLUSERS: preserve the existing per-user upgrade context. -->
-    <Package Id="*" InstallerVersion="500" Compressed="yes" InstallPrivileges="elevated" Platform="x64" Description="轻羽归栈 TrayLeaf v1.1.0 安装程序" Comments="Windows 10/11 x64；当前用户安装；安装时请求提升权限以支持覆盖更新。" />
+    <Package Id="*" InstallerVersion="500" Compressed="yes" InstallPrivileges="elevated" Platform="x64" Description="轻羽归栈 TrayLeaf v1.1.1 安装程序" Comments="Windows 10/11 x64；当前用户安装；安装时请求提升权限以支持覆盖更新。" />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
     <MajorUpgrade DowngradeErrorMessage="已安装更高版本的 TrayLeaf，请先卸载较新版本。" Schedule="afterInstallInitialize" AllowSameVersionUpgrades="yes" />
-    <Property Id="TRAYLEAF_RELEASE_VERSION" Value="1.1.0" />
+    <Property Id="TRAYLEAF_RELEASE_VERSION" Value="1.1.1" />
     <Property Id="ARPPRODUCTICON" Value="TrayLeafIcon" />
     <Property Id="ARPNOMODIFY" Value="1" />
     <!-- A rebuild uses a fresh ProductCode plus AllowSameVersionUpgrades above.
