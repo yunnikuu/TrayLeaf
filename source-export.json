@@ -1,4 +1,4 @@
-{
+﻿{
   "schema_version": 1,
   "description": "Export a curated GitHub source tree. Keep current core regression tests and exclude historical release-only tests, duplicate fixtures and maintenance-only tools. Local authoring tests are not deleted. Release notes and bilingual commit summaries belong beside ZIP/MSI, never in source exports.",
   "root_files": [
@@ -21,6 +21,7 @@
     "AppearanceTests.cs",
     "CloseWindowLayoutTests.cs",
     "ControlledFixture.cs",
+    "DesktopShortcutTests.cpp",
     "Fix2DesktopTests.cpp",
     "Fix2UiTests.cs",
     "FolderPickerTests.cs",
@@ -30,11 +31,15 @@
     "IconTests.cs",
     "IntegrationTests.cs",
     "PolicyTests.cs",
+    "UpdateFlowTests.cs",
     "Version100DialogTests.cs",
     "Version100DownloadTests.cs",
     "Version100RegressionTests.cs",
     "Version100Tests.cs",
     "Version100UiTests.cs",
+    "Version101Tests.cs",
+    "Version110Tests.cs",
+    "Version111Tests.cs",
     "asInvoker.manifest",
     "run-100-dialog-tests.ps1",
     "run-100-download-tests.ps1",
@@ -42,6 +47,9 @@
     "run-100-regression-tests.ps1",
     "run-100-tests.ps1",
     "run-100-ui-tests.ps1",
+    "run-101-tests.ps1",
+    "run-110-tests.ps1",
+    "run-111-tests.ps1",
     "run-appearance-tests.ps1",
     "run-close-layout-tests.ps1",
     "run-fix2-native-tests.ps1",
@@ -52,6 +60,7 @@
     "run-icon-tests.ps1",
     "run-policy-tests.ps1",
     "run-tests.ps1",
+    "run-update-flow-tests.ps1",
     "verify-fix2-installer.ps1",
     "verify-fix2-source.ps1",
     "verify-installer-browse.ps1",
@@ -61,14 +70,7 @@
     "verify-installer-popup.ps1",
     "verify-installer-running.ps1",
     "verify-installer-startup.ps1",
-    "verify-source-export.ps1",
-    "Version101Tests.cs",
-    "run-101-tests.ps1",
-    "UpdateFlowTests.cs",
-    "run-update-flow-tests.ps1",
-    "Version110Tests.cs",
-    "run-110-tests.ps1",
-    "DesktopShortcutTests.cpp"
+    "verify-source-export.ps1"
   ],
   "test_policy": {
     "historical_release_patterns": [
@@ -97,65 +99,44 @@
     "run-ui-tests.ps1"
   ],
   "release_changes": {
-    "base_version": "1.0.1",
-    "commit_title": "Refine profile workflows, menu styling, responsive close progress and desktop shortcut publication",
-    "commit_title_zh": "优化配置流程、菜单外观、关闭进度与桌面快捷方式创建",
+    "base_version": "1.1.0",
+    "commit_title": "Improve restore workflows, glass readability and confirmation dialogs",
+    "commit_title_zh": "优化恢复流程、毛玻璃列表可读性与确认弹窗",
     "changes": [
       {
         "path": "app.manifest",
         "kind": "file",
         "status": "modified",
-        "change": "Update the product identity to v1.1.0.",
-        "change_zh": "将程序版本标识更新为 v1.1.0。"
-      },
-      {
-        "path": "export-source.ps1",
-        "kind": "file",
-        "status": "modified",
-        "change": "Export a clean source tree and write the bilingual top-level commit summary beside ZIP/MSI, outside source.",
-        "change_zh": "导出干净源码，并将中英双语的顶层修改说明保存到 ZIP/MSI 同级，不放进源码。"
-      },
-      {
-        "path": "source-export.json",
-        "kind": "file",
-        "status": "modified",
-        "change": "Exclude release documents and obsolete tests, retain essential regression coverage and bilingual release summaries.",
-        "change_zh": "排除发布文档与老旧测试，保留重要回归测试及双语发布说明。"
-      },
-      {
-        "path": "CHANGELOG.md",
-        "kind": "file",
-        "status": "removed",
-        "change": "Move release notes outside authoring and exported source; keep them beside distributable packages.",
-        "change_zh": "更新日志移出正式源码与导出源码，仅与发布包同级存放。"
-      },
-      {
-        "path": "commit-changes-v1.1.0.json",
-        "kind": "file",
-        "status": "removed_from_source",
-        "change": "Generate this summary in the release directory rather than the source directory.",
-        "change_zh": "此修改说明改在发布目录生成，不再放入源码目录。"
-      },
-      {
-        "path": "src",
-        "kind": "directory",
-        "status": "modified",
-        "change": "Simplify profile saving, refresh selection counts, improve theme/focus/localization behavior and close progress; keep closed selectors adaptive and expanded lists opaque; isolate tray-menu colors.",
-        "change_zh": "简化配置保存、修复选择统计，优化主题、焦点、多语言与关闭进度；闭合下拉框保持自适应，展开列表使用纯色，并隔离托盘菜单配色。"
+        "change": "Advance the application identity to v1.1.1.",
+        "change_zh": "将应用版本标识升级为 v1.1.1。"
       },
       {
         "path": "installer",
         "kind": "directory",
         "status": "modified",
-        "change": "Keep v1.1.0 upgrade compatibility and publish desktop shortcuts at the saved or tail location before Explorer redraw, rather than move them on Finish. Decouple shortcut creation from Explorer placement; retain saved links when view access, redraw or positioning fails, and report real save errors.",
-        "change_zh": "保留 v1.1.0 覆盖安装兼容性，在 Explorer 重绘前将桌面快捷方式放到原位置或末尾，不再点击完成后移动。 快捷方式创建不再依赖桌面定位；桌面视图、重绘或定位失败也保留有效图标，并明确报告实际保存失败。"
+        "change": "Publish the v1.1.1 installer identity while retaining same-version reinstall and upgrade behavior.",
+        "change_zh": "发布 v1.1.1 安装程序标识，并保留同版本重新安装与覆盖升级行为。"
+      },
+      {
+        "path": "source-export.json",
+        "kind": "file",
+        "status": "modified",
+        "change": "Include the active v1.1.1 verification suite in curated source exports.",
+        "change_zh": "将 v1.1.1 当前回归测试纳入精简源码导出。"
+      },
+      {
+        "path": "src",
+        "kind": "directory",
+        "status": "modified",
+        "change": "Add selection pinning, live parallel restore progress, a delayed process refresh, shared profile process selection, readable glass list surfaces, solid confirmation dialogs, and corrected about-page actions.",
+        "change_zh": "新增所选程序置顶、并行恢复进度、延迟刷新进程、配置共用程序选择器、提升毛玻璃列表可读性、确认弹窗纯色隔离及关于页按钮对齐。"
       },
       {
         "path": "tests",
         "kind": "directory",
         "status": "modified",
-        "change": "Cover profile/selection workflows, multilingual layout, solid popup versus adaptive closed selectors, desktop publication order, cleanup failure recovery and clean source exports. Verify actual shortcut targets, working directories and icons under unavailable-view and failed-placement scenarios.",
-        "change_zh": "覆盖配置与选择流程、多语言布局、展开纯色与闭合自适应、桌面创建时序、失败清理和干净源码导出。 新增真实快捷方式文件回归，验证桌面视图不可用、定位失败时的目标路径、工作目录和图标。"
+        "change": "Add v1.1.1 regression coverage for profile selection, sorting, localization, restore progress, delayed refresh, glass readability and solid confirmation dialogs.",
+        "change_zh": "新增 v1.1.1 回归覆盖，验证配置选择、排序置顶、多语言、恢复进度、延迟刷新、毛玻璃可读性与纯色确认弹窗。"
       }
     ]
   }
