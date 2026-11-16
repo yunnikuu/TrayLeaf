@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Threading;
@@ -44,7 +44,7 @@ namespace TrayLeaf {
    if(edit&&selected==null){Status("先选择要编辑的配置");return;}
    var rows=edit?db.LoadSet(selected.Id):(supplied??(kind=="close"?current:history)).Where(r=>r.Selected).Select(ProgramPresentation.Copy).ToList();
    if(rows.Count==0){Status("请先勾选要保存的程序");return;}long saved=edit?selected.Id:0;Window dialog;
-   if(edit)dialog=new ProfileEditor(w,kind,selected.Name,rows,delegate(string name,List<AppRow> values){saved=db.SaveProfile(kind,name,values,selected.Id);});
+   if(edit)dialog=new ProfileEditor(w,kind,selected.Name,rows,delegate(string name,List<AppRow> values){saved=db.SaveProfile(kind,name,values,selected.Id);},PickProfilePrograms);
    else dialog=new ProfileNameDialog(w,"",delegate(string name){saved=db.SaveProfile(kind,name,rows,0);});
    if(dialog.ShowDialog()==true){ReloadCollections();loadingCollections=true;try{combo.SelectedItem=((System.Collections.IEnumerable)combo.ItemsSource).Cast<SavedSet>().FirstOrDefault(x=>x.Id==saved);}finally{loadingCollections=false;}ApplyProfile(kind);Selection();Status("配置已保存");}
   }
@@ -56,7 +56,7 @@ namespace TrayLeaf {
    var rows=db.LoadSet(set.Id);if(kind=="close"){ApplyCloseRows(rows,"关闭配置");return;}
    loading=true;try{Get<ComboBox>("BatchCombo").SelectedItem=null;}finally{loading=false;}
    history=rows;foreach(var r in history){r.ClosePriority=r.Selected?1:0;r.ItemId=0;r.ItemStatus="configured";r.State="未运行 / 可启动";LoadIcon(r);Wire(r,true);}
-   Get<DataGrid>("RestoreGrid").ItemsSource=history;HistoryPresentation.ApplyOrder(Get<DataGrid>("RestoreGrid"));Status("已应用恢复配置“"+set.Name+"”；勾选项将在点击“开启所选程序”时启动");
+   Get<DataGrid>("RestoreGrid").ItemsSource=history;HistoryPresentation.ApplyOrder(Get<DataGrid>("RestoreGrid"));UpdateRestoreProgress();Status("已应用恢复配置“"+set.Name+"”；勾选项将在点击“开启所选程序”时启动");
   }
   void ApplyCloseRows(List<AppRow> rows,string source){
    bool fromHistory=source=="关闭历史";closeHistoryPaths.Clear();ApplyHistoryPins();

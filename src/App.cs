@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -105,7 +105,7 @@ namespace TrayLeaf {
   }
   void Show(){if(!w.IsVisible)w.Show();if(w.WindowState==WindowState.Minimized)w.WindowState=WindowState.Normal;w.Activate();}
   void EnsureFonts(){var combo=Get<ComboBox>("FontFamilyInput");if(combo.ItemsSource!=null)return;combo.ItemsSource=Appearance.InstalledFonts();combo.SelectedValue=w.FontFamily.Source;}
-  void Navigate(int n){if(page!=n){pageVisit++;Text("StatusText","");closeProgressShown=false;}if(associationPanel!=null)associationPanel.Visibility=n==4?Visibility.Visible:Visibility.Collapsed;if(navAssociation!=null){navAssociation.SetResourceReference(Control.ForegroundProperty,n==4?"Accent":"Muted");navAssociation.SetResourceReference(Control.BorderBrushProperty,n==4?"Accent":"TransparentNavigationBorder");}Get<Border>("StatusBar").Visibility=n==2||n==3||n==4?Visibility.Collapsed:String.IsNullOrEmpty(Get<TextBlock>("StatusText").Text)?Visibility.Collapsed:Visibility.Visible;if(n==2){EnsureFonts();UpdateHiddenCount();UpdateCustomCount();}page=n;UpdateCloseProgress();
+  void Navigate(int n){if(page!=n){pageVisit++;Text("StatusText","");closeProgressShown=false;restoreProgressShown=false;}if(associationPanel!=null)associationPanel.Visibility=n==4?Visibility.Visible:Visibility.Collapsed;if(navAssociation!=null){navAssociation.SetResourceReference(Control.ForegroundProperty,n==4?"Accent":"Muted");navAssociation.SetResourceReference(Control.BorderBrushProperty,n==4?"Accent":"TransparentNavigationBorder");}Get<Border>("StatusBar").Visibility=n==2||n==3||n==4?Visibility.Collapsed:String.IsNullOrEmpty(Get<TextBlock>("StatusText").Text)?Visibility.Collapsed:Visibility.Visible;if(n==2){EnsureFonts();UpdateHiddenCount();UpdateCustomCount();}page=n;UpdateCloseProgress();UpdateRestoreProgress();
    Get<Grid>("CurrentPanel").Visibility=n==0?Visibility.Visible:Visibility.Collapsed;
    Get<Grid>("RestorePanel").Visibility=n==1?Visibility.Visible:Visibility.Collapsed;
    Get<Grid>("SettingsHost").Visibility=n==2?Visibility.Visible:Visibility.Collapsed;
@@ -162,7 +162,7 @@ namespace TrayLeaf {
     if(e.PropertyName!="Selected"){
      syncingPreferences=true;try{foreach(var other in current.Concat(history).Where(x=>!Object.ReferenceEquals(x,row)&&String.Equals(x.Path,row.Path,StringComparison.OrdinalIgnoreCase))){other.Args=row.Args;other.Admin=row.Admin;if(other.ItemId>0)db.SaveHistoryChoice(other);}}finally{syncingPreferences=false;}
     }
-    if(!past)Selection();
+    if(!past)Selection();else UpdateRestoreProgress();if(e.PropertyName=="Selected")QueueSelectionOrder(past);
    }catch(Exception ex){Status("设置未保存："+ex.Message);}
   };}
   bool Matches(AppRow row){string q=Get<TextBox>("Search").Text.Trim();return q.Length==0||((row.Name??"")+" "+row.ProcessName+" "+row.Path).IndexOf(q,StringComparison.CurrentCultureIgnoreCase)>=0;}
@@ -185,17 +185,17 @@ namespace TrayLeaf {
    db.MapClosedForRestore(commands);RememberLinkedRestore();PinClosedRows(rows);CompleteClose(batch,commands.Count(r=>r.ItemStatus=="closed"),rows.Count,progressVisit);
   }
   void ReloadHistory(long preferred){loading=true;try{var rows=db.Query("SELECT b.id,b.created,COUNT(i.id),SUM(CASE WHEN i.status IN ('closed','launchfailed') THEN 1 ELSE 0 END) FROM batches b LEFT JOIN items i ON b.id=i.batch GROUP BY b.id ORDER BY b.id DESC");var batches=rows.Select(x=>new BatchInfo{Id=Int64.Parse(x[0]),Label=x[1]+"  ·  "+x[2]+" 项"}).ToList();var combo=Get<ComboBox>("BatchCombo");combo.ItemsSource=batches;combo.SelectedItem=batches.FirstOrDefault(x=>x.Id==preferred)??batches.FirstOrDefault();}finally{loading=false;}LoadHistory();}
-  void LoadHistory(){var b=Get<ComboBox>("BatchCombo").SelectedItem as BatchInfo;history=b==null?new List<AppRow>():ops.History(b.Id);foreach(var r in history){LoadIcon(r);Wire(r,true);}Get<DataGrid>("RestoreGrid").ItemsSource=history;HistoryPresentation.ApplyOrder(Get<DataGrid>("RestoreGrid"));}
+  void LoadHistory(){var b=Get<ComboBox>("BatchCombo").SelectedItem as BatchInfo;history=b==null?new List<AppRow>():ops.History(b.Id);foreach(var r in history){LoadIcon(r);Wire(r,true);}Get<DataGrid>("RestoreGrid").ItemsSource=history;HistoryPresentation.ApplyOrder(Get<DataGrid>("RestoreGrid"));UpdateRestoreProgress();}
   async void RestoreSelected(){if(busy||demo)return;SetBusy(true);try{await RestoreCore();}catch(Exception ex){Error(ex);}finally{SetBusy(false);}}
    async void RefreshRestore(){if(busy||demo)return;SetBusy(true);try{await RefreshRestoreCore();}catch(Exception ex){Error(ex);}finally{SetBusy(false);}}
    async Task RefreshRestoreCore(){int visit=pageVisit;var rows=history.ToList();Status("正在检查恢复列表中的程序状态…");var running=await Task.Run(()=>ProcessService.RunningPaths());ops.RefreshStatuses(rows,running);int active=rows.Count(r=>r.Running==true);VisitStatus(visit,"已刷新 "+rows.Count+" 项："+active+" 项运行中，"+(rows.Count-active)+" 项未运行；可勾选未运行的程序启动");}
    async Task RestoreCore(){int visit=pageVisit;var rows=history.Where(x=>x.Selected&&x.CanRestore).ToList();if(rows.Count==0){Show();Navigate(1);Status("请在恢复列表中勾选要开启的程序，或刷新状态后重新选择");return;}
-    if(rows.Any(x=>x.ItemId==0))ops.PrepareLaunch(rows);
+    SetRestoreProgress(0,rows.Count,visit);int finished=0;if(rows.Any(x=>x.ItemId==0))ops.PrepareLaunch(rows);
     var commands=rows.Select(ProgramPresentation.Command).ToList();var running=await Task.Run(()=>ProcessService.RunningPaths());
-    var limiter=new SemaphoreSlim(4);var reserved=new HashSet<string>(StringComparer.OrdinalIgnoreCase);try{await Task.WhenAll(rows.Select(async (r,index)=>{var command=commands[index];if(!reserved.Add(r.Path??"")){r.State="同路径请求已合并";r.Selected=false;return;}r.State="正在请求启动…";await limiter.WaitAsync();try{string text=await Task.Run(()=>ops.Restore(command,new HashSet<string>(running,StringComparer.OrdinalIgnoreCase)));r.ItemStatus=command.ItemStatus;r.Error=command.Error;r.Running=command.Running;r.State=r.ItemStatus=="launched"?"成功发送请求":text;r.Selected=false;}finally{limiter.Release();}}));}finally{limiter.Dispose();}
+    var limiter=new SemaphoreSlim(4);var reserved=new HashSet<string>(StringComparer.OrdinalIgnoreCase);try{await Task.WhenAll(rows.Select(async (r,index)=>{var command=commands[index];if(!reserved.Add(r.Path??"")){r.State="同路径请求已合并";r.Selected=false;SetRestoreProgress(++finished,rows.Count,visit);return;}r.State="正在请求启动…";await limiter.WaitAsync();try{string text=await Task.Run(()=>(restoreOperation??ops.Restore)(command,new HashSet<string>(running,StringComparer.OrdinalIgnoreCase)));r.ItemStatus=command.ItemStatus;r.Error=command.Error;r.Running=command.Running;r.State=r.ItemStatus=="launched"?"成功发送请求":text;r.Selected=false;}finally{limiter.Release();SetRestoreProgress(++finished,rows.Count,visit);}}));}finally{limiter.Dispose();}
     VisitStatus(visit,"已处理启动请求，正在确认程序是否启动…");
-    await new LaunchMonitor().VerifyAsync(rows,ops);HistoryPresentation.ApplyOrder(Get<DataGrid>("RestoreGrid"));
-    db.Prune();var failed=rows.Where(r=>r.ItemStatus=="launchfailed"||r.ItemStatus=="uncertain").ToList();int sent=rows.Count(r=>r.ItemStatus=="dispatched"),started=rows.Count(r=>r.ItemStatus=="started"),already=rows.Count(r=>r.ItemStatus=="skipped");VisitStatus(visit,"共计 "+rows.Count+" 个程序，启动成功 "+started+" 个"+(sent>0?"，成功发送请求 "+sent+" 个（由系统关联程序打开）":"")+(already>0?"，已在运行 "+already+" 个":"")+(failed.Count>0?"；未启动成功："+String.Join("、",failed.Select(r=>r.Name)):"；已完成启动状态检查"));
+    await (verifyRestored!=null?verifyRestored(rows,ops):new LaunchMonitor().VerifyAsync(rows,ops));HistoryPresentation.ApplyOrder(Get<DataGrid>("RestoreGrid"));
+    db.Prune();var failed=rows.Where(r=>r.ItemStatus=="launchfailed"||r.ItemStatus=="uncertain").ToList();int sent=rows.Count(r=>r.ItemStatus=="dispatched"),started=rows.Count(r=>r.ItemStatus=="started"),already=rows.Count(r=>r.ItemStatus=="skipped");VisitStatus(visit,"共计 "+rows.Count+" 个程序，启动成功 "+started+" 个"+(sent>0?"，成功发送请求 "+sent+" 个（由系统关联程序打开）":"")+(already>0?"，已在运行 "+already+" 个":"")+(failed.Count>0?"；未启动成功："+String.Join("、",failed.Select(r=>r.Name)):"；已完成启动状态检查"));FinishRestoreProgress(rows.Count-failed.Count,rows.Count,visit);ScheduleRestoreRefresh();
    }
   async void HotkeyAction(bool restore){if(busy||demo)return;if(restore&&pendingRestoreProfile!=0){ReloadCollections();Navigate(1);}SetBusy(true);try{if(restore){if(!history.Any(x=>x.ItemStatus=="configured")){var b=db.Query("SELECT batch FROM items WHERE status IN ('closed','launchfailed') ORDER BY batch DESC LIMIT 1");if(b.Count>0)ReloadHistory(Int64.Parse(b[0][0]));}Navigate(1);await RestoreCore();}else{await Scan();await CloseCore();}}catch(Exception ex){Error(ex);}finally{SetBusy(false);}}
   void UpdateHiddenCount(){int count=db.HiddenPrograms().Count;Text("HiddenCountText",count==0?"尚未隐藏程序；隐藏只影响当前列表，不会关闭或卸载程序":"已从当前列表隐藏 "+count+" 个程序；刷新与重启后继续生效，可随时恢复显示");}

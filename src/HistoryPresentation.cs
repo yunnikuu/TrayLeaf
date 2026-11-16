@@ -27,11 +27,11 @@ namespace TrayLeaf {
   }
   internal static void ApplyOrder(DataGrid grid){if(grid.ItemsSource==null)return;var view=CollectionViewSource.GetDefaultView(grid.ItemsSource) as ListCollectionView;if(view==null)return;
    var sorted=grid.Columns.FirstOrDefault(c=>c.SortDirection.HasValue&&!String.IsNullOrEmpty(c.SortMemberPath));
-   using(view.DeferRefresh()){view.SortDescriptions.Clear();view.CustomSort=new RowComparer(sorted==null?"Name":sorted.SortMemberPath,sorted==null?ListSortDirection.Descending:sorted.SortDirection.Value);}
+   using(view.DeferRefresh()){view.SortDescriptions.Clear();view.CustomSort=new RowComparer(sorted==null?"Name":sorted.SortMemberPath,sorted==null?ListSortDirection.Descending:sorted.SortDirection.Value,grid.Name=="ProcessGrid"||grid.Name=="RestoreGrid");}
   }
   internal static int CompareProgramNames(AppRow a,AppRow b){return new RowComparer("Name",ListSortDirection.Descending).Compare(a,b);}
   sealed class RowComparer:IComparer {
-   readonly string key;readonly int direction;internal RowComparer(string k,ListSortDirection d){key=k;direction=d==ListSortDirection.Ascending?1:-1;}
+   readonly string key;readonly int direction;readonly bool selectedFirst;internal RowComparer(string k,ListSortDirection d,bool pinSelection=false){key=k;direction=d==ListSortDirection.Ascending?1:-1;selectedFirst=pinSelection;}
    // Sort the label users actually see, including in the all-processes view.
    static string Name(AppRow r){return (!String.IsNullOrWhiteSpace(r.Name)?r.Name:!String.IsNullOrWhiteSpace(r.ProcessName)?r.ProcessName:!String.IsNullOrWhiteSpace(r.Path)?Path.GetFileName(r.Path):"").Trim();}
    static int NameOrder(AppRow a,AppRow b,int direction){return Text(Name(a),Name(b),direction);}
@@ -41,7 +41,7 @@ namespace TrayLeaf {
    static int Source(string value){switch(value??""){case "历史记录":return 0;case "自定义":return 1;case "通知区域":return 2;case "任务栏窗口":return 3;case "全部进程":return 4;case "托盘候选":return 5;default:return 6;}}
    static int State(AppRow r){if(r.Running==true||r.State=="运行中"||r.State=="启动成功"||r.ItemStatus=="started"||r.ItemStatus=="running"||r.ItemStatus=="skipped")return 0;if(r.ItemStatus=="closed"||r.State=="已关闭")return 2;return 1;}
    public int Compare(object x,object y){var a=x as AppRow;var b=y as AppRow;if(a==null||b==null)return 0;
-    int n=b.ClosePriority.CompareTo(a.ClosePriority);if(n!=0)return n;n=b.HistoryPriority.CompareTo(a.HistoryPriority);if(n!=0)return n;
+    int n=selectedFirst?b.Selected.CompareTo(a.Selected):0;if(n!=0)return n;n=b.ClosePriority.CompareTo(a.ClosePriority);if(n!=0)return n;n=b.HistoryPriority.CompareTo(a.HistoryPriority);if(n!=0)return n;
     // The custom glyph points down for Descending; name order follows that visual contract.
     switch(key){case "MemoryMB":n=a.MemoryMB.CompareTo(b.MemoryMB);n*=direction;break;case "Source":n=Source(a.Source).CompareTo(Source(b.Source));n*=direction;break;case "Risk":case "RiskText":n=(a.Antivirus?2:(a.Risk?1:0)).CompareTo(b.Antivirus?2:(b.Risk?1:0));n*=-direction;break;case "State":n=State(a).CompareTo(State(b));n*=-direction;break;case "Admin":n=a.Admin.CompareTo(b.Admin);n*=direction;break;default:n=NameOrder(a,b,-direction);break;}
     if(n!=0)return n;n=StringComparer.OrdinalIgnoreCase.Compare(Name(a),Name(b));if(n!=0)return n;
