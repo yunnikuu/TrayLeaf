@@ -4,8 +4,8 @@ function Check($n,$b){if($b){$script:pass++;"PASS $n"}else{$script:fail++;"FAIL 
 $ins=New-Object -ComObject WindowsInstaller.Installer;$db=$ins.OpenDatabase([IO.Path]::GetFullPath($MsiPath),0)
 function Rows($sql,$n){$v=$db.OpenView($sql);try{$v.Execute()|Out-Null;while($r=$v.Fetch()){$row=@();for($i=1;$i -le $n;$i++){$row+=$r.StringData($i)};Write-Output -NoEnumerate $row}}finally{$v.Close()|Out-Null}}
 $p=@{};foreach($r in (Rows 'SELECT `Property`,`Value` FROM `Property`' 2)){$p[$r[0]]=$r[1]}
-Check 'release-identity-preserved' ($p.TRAYLEAF_RELEASE_VERSION -eq '1.1.1')
-Check 'msi-numeric-version-compatible' ($p.ProductVersion -eq '1.1.1')
+Check 'release-identity-preserved' ($p.TRAYLEAF_RELEASE_VERSION -eq '1.1.2')
+Check 'msi-numeric-version-compatible' ($p.ProductVersion -eq '1.1.2')
 Check 'upgrade-identity-preserved' ($p.UpgradeCode -eq '{49F5C6BF-41D9-5CF1-8FFA-917E45CCB2DC}')
 $controls=@(Rows 'SELECT `Dialog_`,`Control`,`Type`,`Text` FROM `Control`' 4)
 $c=@($controls|Where-Object{$_[0] -eq 'TrayLeafMaintenanceTypeDlg'})
