@@ -41,6 +41,7 @@
     "Version110Tests.cs",
     "Version111Tests.cs",
     "Version112Tests.cs",
+    "Version113Tests.cs",
     "asInvoker.manifest",
     "run-100-dialog-tests.ps1",
     "run-100-download-tests.ps1",
@@ -52,6 +53,7 @@
     "run-110-tests.ps1",
     "run-111-tests.ps1",
     "run-112-tests.ps1",
+    "run-113-tests.ps1",
     "run-appearance-tests.ps1",
     "run-close-layout-tests.ps1",
     "run-fix2-native-tests.ps1",
@@ -72,7 +74,9 @@
     "verify-installer-popup.ps1",
     "verify-installer-running.ps1",
     "verify-installer-startup.ps1",
-    "verify-source-export.ps1"
+    "verify-source-export.ps1",
+    "StartupBehaviorTests.cs",
+    "run-startup-behavior-tests.ps1"
   ],
   "test_policy": {
     "historical_release_patterns": [
@@ -86,7 +90,8 @@
       "appearance and dialogs",
       "glass performance and movement",
       "installer launch, upgrade, folder picker and completion rendering",
-      "v1.1.0 scoped UI state, selected profile snapshots, solid menus and close progress"
+      "v1.1.0 scoped UI state, selected profile snapshots, solid menus and close progress",
+      "Login-only silent startup and cross-process shortcut activation"
     ],
     "review_rule": "Add new tests only for active important behavior; remove superseded fixtures together with their runner scripts after dependency and regression verification."
   },
@@ -101,44 +106,44 @@
     "run-ui-tests.ps1"
   ],
   "release_changes": {
-    "base_version": "1.1.1",
-    "commit_title": "Add English localization and refine dark dialogs and profile editing",
-    "commit_title_zh": "新增完整英语界面并适配暗色确认弹窗与配置编辑",
+    "base_version": "1.1.2",
+    "commit_title": "Fix v1.1.3 UI interactions and login-only silent startup with existing-window activation",
+    "commit_title_zh": "修复 v1.1.3 界面交互，并限定静默自启动及支持快捷方式唤起已有窗口",
     "changes": [
       {
         "path": "app.manifest",
         "kind": "file",
         "status": "modified",
-        "change": "Advance the application identity to v1.1.2.",
-        "change_zh": "将应用版本标识升级为 v1.1.2。"
+        "change": "Advance application identity to v1.1.3.",
+        "change_zh": "将应用版本标识升级为 v1.1.3。"
       },
       {
         "path": "installer",
         "kind": "directory",
         "status": "modified",
-        "change": "Publish v1.1.2 while preserving upgrades and same-version reinstall support.",
-        "change_zh": "发布 v1.1.2 安装程序并保留覆盖升级及同版本重新安装支持。"
+        "change": "Publish v1.1.3 while retaining upgrade and same-version reinstall behavior.",
+        "change_zh": "发布 v1.1.3 安装程序，保留覆盖升级与同版本重新安装。"
       },
       {
         "path": "source-export.json",
         "kind": "file",
         "status": "modified",
-        "change": "Include active v1.1.2 regression coverage and bilingual top-level commit summaries.",
-        "change_zh": "纳入 v1.1.2 当前回归测试并更新中英双语一级修改摘要。"
+        "change": "Include active v1.1.3 behavioral regression tests and bilingual release summaries.",
+        "change_zh": "纳入 v1.1.3 行为回归测试与中英双语发布摘要。"
       },
       {
         "path": "src",
         "kind": "directory",
         "status": "modified",
-        "change": "Add complete English presentation, light/dark opaque confirmation palettes, live tray/all-process candidates in profile editors, a compact language selector, aligned restore actions, silent-start labeling, and background opacity up to 90 percent.",
-        "change_zh": "新增完整英语界面、适配深浅色的纯色确认弹窗、配置编辑器托盘及全部进程候选、紧凑语言框、恢复工具栏对齐、静默启动命名和最高 90% 背景图片不透明度。"
+        "change": "Complete unlinked-profile localization, require explicit dropdown confirmation, unify solid dialog surfaces and proportions, show versioned update badges with a single About action, and remove misleading mouse-focus and dotted frames. Limit silent startup to enabled logon startup; manual launch shows the window and repeated shortcuts activate the existing instance before elevation.",
+        "change_zh": "补全未关联配置的多语言显示，下拉框仅显式确认后应用，统一纯色弹窗底色和比例，更新角标显示版本且关于页仅保留一个更新操作按钮，修复鼠标焦点伪选中框及黑色虚线框。 静默启动仅作用于已启用的开机自启动；手动打开显示窗口，再次打开快捷方式在提权前唤起已有实例。"
       },
       {
         "path": "tests",
         "kind": "directory",
         "status": "modified",
-        "change": "Verify English coverage and language switching, dark confirmation contrast, candidate preservation, restore layout, silent-start persistence and background opacity boundaries.",
-        "change_zh": "验证英语词条覆盖及语言切换、暗色确认弹窗对比度、程序候选保留、恢复布局、静默启动持久化与背景不透明度边界。"
+        "change": "Cover outside-dismiss cancellation, same-profile reapplication, localized sentinel labels, opaque dialog geometry, one-action update flows and keyboard/mouse focus visuals. Add a 16-case launch policy and real cross-process reactivation regression fixture.",
+        "change_zh": "覆盖框外取消、同配置重复读取、多语言未关联项、纯色弹窗布局、单按钮更新流程及键鼠焦点显示。 新增 16 项启动策略及真实跨进程窗口唤起回归验证。"
       }
     ]
   }
