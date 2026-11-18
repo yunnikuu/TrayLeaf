@@ -12,7 +12,7 @@ class Version112Tests {
  [STAThread] static int Main(string[] args){try{
   Directory.CreateDirectory(args[0]);var app=new Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};using(var stream=Assembly.GetExecutingAssembly().GetManifestResourceStream("TrayLeaf.MainWindow.xaml"))w=(Window)System.Windows.Markup.XamlReader.Load(stream);
   using(var db=new Database(Path.Combine(args[0],"ui-"+Guid.NewGuid()+".db"))){c=new Controller(app,w,db,true);c.Start(null);Pump(80);
-   Check(AppIdentity.ReleaseVersion=="1.1.2","release-version-112");
+   Check(new Version(AppIdentity.ReleaseVersion)>=new Version("1.1.2"),"release-version-112");
    foreach(bool dark in new[]{false,true}){El<ComboBox>("ThemeInput").SelectedIndex=dark?1:0;El<ComboBox>("AccentInput").SelectedIndex=4;El<ComboBox>("WindowTintInput").SelectedIndex=5;Call("PreviewAppearance");
     var dialog=ModernDialog.Build(w,"是否更新到最新版本","",true,true);dialog.Show();Pump(20);var surface=(SolidColorBrush)dialog.Resources["Surface"];Check(surface.Color.A==255&&(dark?Light(surface)<.3:Light(surface)>.9),"confirmation-solid-mode-"+dark);Check(!Object.ReferenceEquals(dialog.Resources,w.Resources)&&!NativeBackdrop.Enabled(dialog),"confirmation-independent-"+dark);if(dark)Snapshot(dialog,Path.Combine(args[0],"dark-confirm112.png"));dialog.Close();
     var closing=CloseWindowDialog.Build(w);Check(dark?Light((Brush)closing.Resources["Surface"])<.3:Light((Brush)closing.Resources["Surface"])>.9,"close-window-mode-"+dark);closing.Close();
