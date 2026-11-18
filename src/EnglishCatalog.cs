@@ -4,6 +4,13 @@ namespace TrayLeaf {
  // stay canonical; no external translation or network access is needed.
  internal static class EnglishCatalog {
   internal static readonly Dictionary<string,string> Phrases=new Dictionary<string,string>(StringComparer.Ordinal){
+   {"下载更新","Download update"},
+   {"轻羽归栈正在启动，请稍后重试","TrayLeaf is starting. Please try again shortly."},
+   {"安装更新","Install update"},
+   {"发现新版本 {0}","Update available {0}"},
+   {"发现新版本 {0}，可点击下载更新","Update available {0}; click Download update"},
+   {"单击切换升序 / 降序；拖动列边界调整宽度","Click to sort; drag a column edge to resize"},
+
    {"\n\n包含系统 / 服务进程：","\n\nIncludes system or service processes:"},
    {"\n\n原数据库保留，所选目录不能已有数据库","\n\nThe original database will be kept. Choose a folder without an existing database."},
    {"\n\n恢复只会重新启动程序，不恢复文件、窗口或会话","\n\nRestore only relaunches apps. It does not recover files, windows or sessions."},

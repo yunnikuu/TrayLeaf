@@ -5,7 +5,7 @@ using System.Linq;
 namespace TrayLeaf {
  public sealed class SavedSet {
   public long Id {get;set;} public string Kind {get;set;} public string Name {get;set;} public string Created {get;set;} public int Count {get;set;}
-  public override string ToString(){return Name+"  ·  "+(UiLanguage.Code=="en"?Count+(Count==1?" item":" items"):Count+UiLanguage.Text(" 项"));}
+  public override string ToString(){if(Kind=="unlinked")return UiLanguage.Text("不关联");return Name+"  ·  "+(UiLanguage.Code=="en"?Count+(Count==1?" item":" items"):Count+UiLanguage.Text(" 项"));}
  }
  public sealed partial class Database {
   void InitializeCollections(){lock(gate){Execute("BEGIN IMMEDIATE");try{

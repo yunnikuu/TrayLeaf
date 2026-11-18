@@ -18,6 +18,7 @@ namespace TrayLeaf {
  static void Release(object o){if(o!=null&&Marshal.IsComObject(o))Marshal.FinalReleaseComObject(o);}
  internal static string Quote(string arg){var result=new System.Text.StringBuilder("\"");int slash=0;foreach(char c in arg??""){if(c=='\\'){slash++;continue;}if(c=='\"'){result.Append('\\',slash*2+1);result.Append(c);slash=0;continue;}result.Append('\\',slash);slash=0;result.Append(c);}result.Append('\\',slash*2);return result.Append('"').ToString();}
  internal static string CommandLine(string[] args){return String.Join(" ",args.Select(Quote));}
+ internal static bool ShouldLaunchHidden(string[] args,bool autoStartEnabled,bool silent){return autoStartEnabled&&silent&&args.Contains("--startup");}
  // asInvoker manifest allows the preference to be disabled; explicit runas is only attempted at entry.
  internal static int Bootstrap(string[] args){if(args.Contains("--ui-smoke")||args.Contains("--no-elevate")||!PreferAdmin||ProcessService.Elevated)return -1;if(args.Contains("--elevated"))throw new InvalidOperationException("未能获得管理员权限");try{var start=new ProcessStartInfo(Exe,CommandLine(args.Concat(new[]{"--elevated"}).ToArray())){UseShellExecute=true,Verb="runas",WorkingDirectory=Path.GetDirectoryName(Exe)};using(var process=Process.Start(start)){}return 0;}catch(System.ComponentModel.Win32Exception ex){if(ex.NativeErrorCode==1223)return -1;throw;}}
  internal static bool HasRunEntry {get{using(var key=Registry.CurrentUser.OpenSubKey(RunKey))return key!=null&&key.GetValue("TrayLeaf")!=null;}}

@@ -26,15 +26,20 @@ namespace TrayLeaf {
     Click("Edit"+prefix+"ProfileButton",delegate{SaveProfile(captured,true,null);});
     Click("Delete"+prefix+"ProfileButton",delegate{DeleteProfile(captured);});
    }
-   Get<ComboBox>("CloseHistoryCombo").SelectionChanged+=delegate{if(loadingCollections||busy)return;Guard(delegate{var set=Get<ComboBox>("CloseHistoryCombo").SelectedItem as SavedSet;if(set!=null)ApplyCloseRows(db.LoadSet(set.Id),"关闭历史");});};
+   ConfigureProfileSelection(Get<ComboBox>("CloseHistoryCombo"),delegate{if(loadingCollections||busy)return;Guard(delegate{var set=Get<ComboBox>("CloseHistoryCombo").SelectedItem as SavedSet;if(set!=null)ApplyCloseRows(db.LoadSet(set.Id),"关闭历史");});});
    ProgramPresentation.AttachMenus(Get<DataGrid>("ProcessGrid"),Status,row=>HideRows(new[]{row}),RenameMain);ProgramPresentation.AttachMenus(Get<DataGrid>("RestoreGrid"),Status,null,RenameMain,EditRestoreArgs);
    ReloadCollections();
   }
-  static void ConfigureProfileSelection(ComboBox combo,Action apply){bool open=false,cancelled=false;
-   combo.DropDownOpened+=delegate{open=true;cancelled=false;};
-   combo.PreviewKeyDown+=delegate(object sender,KeyEventArgs e){if(e.Key==Key.Escape)cancelled=true;};
+  static void ConfigureProfileSelection(ComboBox combo,Action apply){bool open=false,confirmed=false;object prior=null;
+   combo.DropDownOpened+=delegate{open=true;confirmed=false;prior=combo.SelectedItem;};
+   combo.AddHandler(Mouse.PreviewMouseUpEvent,new MouseButtonEventHandler(delegate(object sender,MouseButtonEventArgs e){
+    if(!open||e.ChangedButton!=MouseButton.Left)return;
+    var item=ItemsControl.ContainerFromElement(combo,e.OriginalSource as DependencyObject) as ComboBoxItem;
+    if(item!=null)confirmed=true;
+   }),true);
+   combo.PreviewKeyDown+=delegate(object sender,KeyEventArgs e){if(!open)return;if(e.Key==Key.Escape)confirmed=false;else if(e.Key==Key.Enter||e.Key==Key.Return)confirmed=true;};
    combo.SelectionChanged+=delegate{if(!open)apply();};
-   combo.DropDownClosed+=delegate{open=false;if(!cancelled)apply();};
+   combo.DropDownClosed+=delegate{bool commit=confirmed;if(!commit)combo.SelectedItem=prior;open=false;confirmed=false;if(commit)apply();};
   }
   void ReloadCollections(){loadingCollections=true;try{
    Get<ComboBox>("CloseHistoryCombo").ItemsSource=db.ListSets("history_close");

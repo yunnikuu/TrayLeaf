@@ -12,13 +12,13 @@ namespace TrayLeaf {
    var button=Get<Button>("CheckUpdateButton");button.IsEnabled=false;
    var stop=new CancellationTokenSource();if(automatic)automaticUpdate=stop;
    try{UpdateText("正在检查更新…");string tag=await updateFetcher(stop.Token);if(updateDisposed||stop.IsCancellationRequested)return;
-    PresentUpdate(tag);UpdateText(UpdateService.IsNewer(tag,AppIdentity.ReleaseVersion)?"发现新版本 "+tag+"，可点击下载最新版":"当前已是最新版本 v"+AppIdentity.ReleaseVersion);
+    PresentUpdate(tag);UpdateText(UpdateService.IsNewer(tag,AppIdentity.ReleaseVersion)?UiLanguage.Format("发现新版本 {0}，可点击下载更新", "v"+tag.TrimStart('v','V')):"当前已是最新版本 v"+AppIdentity.ReleaseVersion);
    }catch(OperationCanceledException){if(!updateDisposed&&!automatic)UpdateText("检查已取消");}
    catch(Exception ex){if(!updateDisposed)UpdateText("检查失败："+ex.Message);}
    finally{if(automaticUpdate==stop)automaticUpdate=null;stop.Dispose();if(!updateDisposed)button.IsEnabled=true;}
   }
-  void UpdateText(string message){Text("UpdateStatus",message);Get<TextBlock>("UpdateStatus").Visibility=Visibility.Visible;Get<Button>("DownloadLatestButton").ToolTip=UiLanguage.Text(message);}
-  void DownloadCaption(string caption){if(updateDisposed)return;Get<Button>("DownloadLatestButton").Content=UiLanguage.Text(caption);if(downloadButton!=null)downloadButton.Content=UiLanguage.Text(caption);}
+  void UpdateText(string message){Text("UpdateStatus",message);Get<TextBlock>("UpdateStatus").Visibility=Visibility.Visible;Get<Button>("CheckUpdateButton").ToolTip=UiLanguage.Text(message);}
+  void DownloadCaption(string caption){if(updateDisposed)return;Get<Button>("CheckUpdateButton").Content=UiLanguage.Text(caption);}
   async Task DownloadLatestUpdate(){
    if(updateDownload!=null){updateDownload.Cancel();return;}
    updateDownload=new CancellationTokenSource();var token=updateDownload.Token;DownloadCaption("取消下载");
@@ -48,7 +48,7 @@ namespace TrayLeaf {
     }
    }catch(OperationCanceledException){if(!updateDisposed)UpdateText("下载已取消");}
    catch(Exception ex){if(!updateDisposed){string message="更新失败："+ex.Message;UpdateText(message);if(reportUpdateError!=null)reportUpdateError(message);else{Show();ModernDialog.Confirm(w,message,"",false);}}}
-   finally{updateDownload.Dispose();updateDownload=null;DownloadCaption(String.IsNullOrEmpty(downloadedUpdateFile)?"下载最新版":"安装最新版");}
+   finally{updateDownload.Dispose();updateDownload=null;DownloadCaption(releaseUrl==null?"检查更新":String.IsNullOrEmpty(downloadedUpdateFile)?"下载更新":"安装更新");}
   }
  }
 }

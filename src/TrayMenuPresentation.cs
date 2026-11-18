@@ -16,6 +16,7 @@ namespace TrayLeaf { internal static class TrayMenuPresentation {
    string[] colors={"#151B1A","#202827","#202827","#252F2C","#19211F","#252F2C","#E7F0EB","#A7BAB0","#35433D","#2C3933","#7CBBB2","#2A443B","#14251F","#EDBE75"};
    for(int i=0;i<keys.Length;i++)resources[keys[i]]=ThemeManager.Brush(colors[i]);
   }
+  resources["Canvas"]=resources["Surface"];
   return resources;
  }
  internal static ContextMenu Create(Window owner){var resources=DefaultResources(owner);return new ContextMenu{Resources=resources,Placement=PlacementMode.MousePoint,FontFamily=owner.FontFamily,FontSize=owner.FontSize,Background=(Brush)resources["Surface"],Foreground=(Brush)resources["Text"]};

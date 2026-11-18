@@ -12,7 +12,7 @@ namespace TrayLeaf {
   void Setup097(){
    Get<ComboBox>("WindowTintInput").SelectedIndex=(int)Number("windowTint",0,0,ThemeManager.Accents.Length-1);Get<ComboBox>("WindowTintInput").SelectionChanged+=delegate{PreviewAppearance();};
    Get<CheckBox>("AutoCheckUpdateInput").IsChecked=Setting("autoCheckUpdates",true);Get<CheckBox>("AutoCheckUpdateInput").Unchecked+=delegate{if(automaticUpdate!=null)automaticUpdate.Cancel();};Get<CheckBox>("AutoCheckUpdateInput").Checked+=delegate{if(!initializing)CheckAutoUpdates();};
-   Click("ChangeDataButton",ChangeDataDirectory);Click("ManageCustomButton",ManageCustom);Click("NewVersionBadge",delegate{Navigate(3);if(releaseUrl!=null){Text("UpdateStatus","发现新版本，可点击下载最新版");Get<TextBlock>("UpdateStatus").Visibility=Visibility.Visible;Get<Button>("OpenReleaseButton").Visibility=Visibility.Visible;}});
+   Click("ChangeDataButton",ChangeDataDirectory);Click("ManageCustomButton",ManageCustom);Click("NewVersionBadge",delegate{Navigate(3);if(releaseUrl!=null){Text("UpdateStatus",UiLanguage.Format("发现新版本 {0}，可点击下载更新",Convert.ToString(Get<Button>("NewVersionBadge").Tag)));Get<TextBlock>("UpdateStatus").Visibility=Visibility.Visible;Get<Button>("OpenReleaseButton").Visibility=Visibility.Visible;}});
    ScrollActivity.Attach(Get<ScrollViewer>("SettingsPanel"));ScrollActivity.Attach(Get<DataGrid>("ProcessGrid"));ScrollActivity.Attach(Get<DataGrid>("RestoreGrid"));
    w.Closed+=delegate{updateDisposed=true;if(automaticUpdate!=null)automaticUpdate.Cancel();};UpdateCustomCount();PreviewAppearance();
   }
@@ -31,9 +31,9 @@ namespace TrayLeaf {
    bool newer=UpdateService.IsNewer(tag,AppIdentity.ReleaseVersion);
    releaseUrl=newer?UpdateService.ProjectUrl+"/releases/tag/"+Uri.EscapeDataString(tag):null;
    Get<Button>("NewVersionBadge").Visibility=newer?Visibility.Visible:Visibility.Collapsed;
-   Get<Button>("NewVersionBadge").ToolTip=UiLanguage.Text("发现新版本 ")+tag;
-   if(downloadButton!=null)downloadButton.Visibility=newer?Visibility.Visible:Visibility.Collapsed;
-   Get<Button>("DownloadLatestButton").Visibility=newer?Visibility.Visible:Visibility.Collapsed;
+   var badge=Get<Button>("NewVersionBadge");string version="v"+(tag??"").TrimStart('v','V');badge.Tag=version;
+   badge.Content=UiLanguage.Format("发现新版本 {0}",version);badge.ToolTip=badge.Content;
+   if(updateDownload==null)DownloadCaption(newer?(String.IsNullOrEmpty(downloadedUpdateFile)?"下载更新":"安装更新"):"检查更新");
    Get<Button>("OpenReleaseButton").Visibility=newer?Visibility.Visible:Visibility.Collapsed;
   }
  }

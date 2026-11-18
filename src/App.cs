@@ -34,8 +34,9 @@ namespace TrayLeaf {
    string smoke=Value(args,"--ui-smoke"),database=Value(args,"--db");bool test=smoke!=null;Mutex mutex=null;
    try {
     int installAction=StartupManager.InstallerAction(args);if(installAction>=0)return installAction;
+    if(!test&&SingleInstanceActivation.TryActivateExisting(args.Contains("--startup")))return 0;
     int bootstrap=StartupManager.Bootstrap(args);if(bootstrap>=0)return bootstrap;
-    if(!test){try{StartupManager.ReconcileInstalledStartup();}catch{}bool created;mutex=new Mutex(true,"Local\\TrayLeaf."+System.Security.Principal.WindowsIdentity.GetCurrent().User.Value,out created);if(!created){StartupNotice.Show("轻羽归栈已经运行，请从通知区域打开","轻羽归栈");return 0;}}
+    if(!test){try{StartupManager.ReconcileInstalledStartup();}catch{}bool created;mutex=new Mutex(true,"Local\\TrayLeaf."+System.Security.Principal.WindowsIdentity.GetCurrent().User.Value,out created);if(!created){if(!SingleInstanceActivation.TryActivateExisting(args.Contains("--startup"),5000))StartupNotice.Show("轻羽归栈正在启动，请稍后重试","轻羽归栈");return 0;}}
     var app=new Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};
     if(database==null)database=DataLocation.Resolve(DataLocation.Marker);
     using(var db=new Database(database)) {
@@ -88,12 +89,12 @@ namespace TrayLeaf {
    Click("ForgetButton",Forget);Click("ManageHiddenButton",ManageHidden);Click("ReloadHistoryButton",delegate{ReloadHistory(0);});Click("RefreshRestoreButton",RefreshRestore);
    Click("SelectRestoreButton",delegate{foreach(var r in history)r.Selected=r.CanRestore;});
    Get<TextBox>("Search").TextChanged+=delegate{ApplyFilter();};Get<ComboBox>("ScanMode").SelectionChanged+=delegate{if(!initializing){db.Set("allProcesses",Get<ComboBox>("ScanMode").SelectedIndex==1?"1":"0");Refresh();}};
-   Get<ComboBox>("BatchCombo").SelectionChanged+=delegate{if(!loading)Guard(LoadHistory);};
+   ConfigureProfileSelection(Get<ComboBox>("BatchCombo"),delegate{if(!loading)Guard(LoadHistory);});
    Get<TextBox>("CloseHotkeyInput").PreviewKeyDown+=delegate(object s,KeyEventArgs e){CaptureKey(s as TextBox,e,true);};
    Get<TextBox>("RestoreHotkeyInput").PreviewKeyDown+=delegate(object s,KeyEventArgs e){CaptureKey(s as TextBox,e,false);};
    w.Closing+=HandleMainClose;
    w.StateChanged+=delegate{if(!demo&&w.WindowState==WindowState.Minimized&&Setting("minimizeTray",true))w.Hide();};
-   w.SourceInitialized+=delegate{handle=new WindowInteropHelper(w).Handle;source=HwndSource.FromHwnd(handle);source.AddHook(Hook);if(!demo)try{RegisterKeys(closeKey,restoreKey);}catch(Exception ex){Status("快捷键未启用："+ex.Message);w.Dispatcher.BeginInvoke(new Action(delegate{Error(ex);}));}};
+   w.SourceInitialized+=delegate{handle=new WindowInteropHelper(w).Handle;source=HwndSource.FromHwnd(handle);source.AddHook(Hook);SingleInstanceActivation.Bind(handle);if(!demo)try{RegisterKeys(closeKey,restoreKey);}catch(Exception ex){Status("快捷键未启用："+ex.Message);w.Dispatcher.BeginInvoke(new Action(delegate{Error(ex);}));}};
    SetupModern();
    SetupCollections();Get<DataGrid>("ProcessGrid").PreviewMouseLeftButtonDown+=delegate(object sender,MouseButtonEventArgs e){var dep=e.OriginalSource as DependencyObject;var row=ItemsControl.ContainerFromElement(Get<DataGrid>("ProcessGrid"),dep) as DataGridRow;var item=row==null?null:row.Item as AppRow;if(item!=null&&item.Antivirus){e.Handled=true;Show();ModernDialog.Confirm(w,"杀毒类软件不支持关闭喵","无法关闭",false);}};
    Appearance.ConfigureTypography(w);SetupInteraction095();Setup097();Setup098();Setup100();
@@ -101,9 +102,10 @@ namespace TrayLeaf {
    app.DispatcherUnhandledException+=delegate(object s,DispatcherUnhandledExceptionEventArgs e){e.Handled=true;Error(e.Exception);};
    initializing=false;
    if(demo){FillDemo();w.Show();if(smokePath==null)return;var timer=new DispatcherTimer{Interval=TimeSpan.FromMilliseconds(1000)};timer.Tick+=delegate{timer.Stop();try{w.UpdateLayout();var content=(FrameworkElement)w.Content;var bitmap=new RenderTargetBitmap((int)content.ActualWidth,(int)content.ActualHeight,96,96,PixelFormats.Pbgra32);bitmap.Render(content);var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));using(var f=File.Create(smokePath))encoder.Save(f);}catch(Exception ex){File.WriteAllText(smokePath+".error.txt",ex.ToString());}exiting=true;w.Close();app.Shutdown();};timer.Start();return;}
-   ops.RecoverInterrupted();db.Prune();CreateTray();w.Show();if(Setting("launchHidden",false)||Environment.GetCommandLineArgs().Contains("--startup"))w.Hide();Refresh();ReloadHistory(0);CheckAutoUpdates();
+   ops.RecoverInterrupted();db.Prune();CreateTray();ApplyStartupVisibility(Environment.GetCommandLineArgs(),Get<CheckBox>("AutoStartInput").IsChecked==true);Refresh();ReloadHistory(0);CheckAutoUpdates();
   }
-  void Show(){if(!w.IsVisible)w.Show();if(w.WindowState==WindowState.Minimized)w.WindowState=WindowState.Normal;w.Activate();}
+  void ApplyStartupVisibility(string[] args,bool autoStartEnabled){if(StartupManager.ShouldLaunchHidden(args,autoStartEnabled,Setting("launchHidden",false))){new WindowInteropHelper(w).EnsureHandle();w.Hide();}else Show();}
+  void Show(){if(!w.IsVisible)w.Show();if(w.WindowState==WindowState.Minimized)w.WindowState=WindowState.Normal;w.Activate();if(handle!=IntPtr.Zero)Native.SetForegroundWindow(handle);}
   void EnsureFonts(){var combo=Get<ComboBox>("FontFamilyInput");if(combo.ItemsSource!=null)return;combo.ItemsSource=Appearance.InstalledFonts();combo.SelectedValue=w.FontFamily.Source;}
   void Navigate(int n){if(page!=n){pageVisit++;Text("StatusText","");closeProgressShown=false;restoreProgressShown=false;}if(associationPanel!=null)associationPanel.Visibility=n==4?Visibility.Visible:Visibility.Collapsed;if(navAssociation!=null){navAssociation.SetResourceReference(Control.ForegroundProperty,n==4?"Accent":"Muted");navAssociation.SetResourceReference(Control.BorderBrushProperty,n==4?"Accent":"TransparentNavigationBorder");}Get<Border>("StatusBar").Visibility=n==2||n==3||n==4?Visibility.Collapsed:String.IsNullOrEmpty(Get<TextBlock>("StatusText").Text)?Visibility.Collapsed:Visibility.Visible;if(n==2){EnsureFonts();UpdateHiddenCount();UpdateCustomCount();}page=n;UpdateCloseProgress();UpdateRestoreProgress();
    Get<Grid>("CurrentPanel").Visibility=n==0?Visibility.Visible:Visibility.Collapsed;
@@ -212,7 +214,7 @@ namespace TrayLeaf {
   void EndPick(){picker.Stop();tray.Text=UiLanguage.Text("轻羽归栈 · 后台暂时休息");Show();SetBusy(false);}
   void UpdateKeys(){Text("CloseHotkeyText",closeKey.Key==0?"":closeKey.ToString());Text("RestoreHotkeyText",restoreKey.Key==0?"":restoreKey.ToString()+" · 快捷键处理最近一个含待恢复项的批次");}
   void RegisterKeys(HotkeySpec close,HotkeySpec restore){Native.UnregisterHotKey(handle,1);Native.UnregisterHotKey(handle,2);if(close.Key!=0&&!Native.RegisterHotKey(handle,1,close.Mods|0x4000,close.Key))throw new Win32Exception(System.Runtime.InteropServices.Marshal.GetLastWin32Error(),"关闭快捷键注册失败；可能已被其他程序占用");if(restore.Key!=0&&restore.Code!=close.Code&&!Native.RegisterHotKey(handle,2,restore.Mods|0x4000,restore.Key)){Native.UnregisterHotKey(handle,1);throw new Win32Exception(System.Runtime.InteropServices.Marshal.GetLastWin32Error(),"恢复快捷键注册失败；可能已被其他程序占用");}}
-  IntPtr Hook(IntPtr hwnd,int msg,IntPtr wp,IntPtr lp,ref bool handled){if(msg==0x312){handled=true;if(Get<TextBox>("CloseHotkeyInput").IsKeyboardFocused||Get<TextBox>("RestoreHotkeyInput").IsKeyboardFocused||busy)return IntPtr.Zero;Guard(delegate{bool restore=wp.ToInt32()==2;if(closeKey.Code==restoreKey.Code)restore=Policy.SharedAction(history.Any(x=>x.ItemStatus=="configured"&&x.Selected)||db.Query("SELECT id FROM items WHERE status IN ('closed','launchfailed') LIMIT 1").Count>0)=="restore";HotkeyAction(restore);});}return IntPtr.Zero;}
+  IntPtr Hook(IntPtr hwnd,int msg,IntPtr wp,IntPtr lp,ref bool handled){if(msg==SingleInstanceActivation.Message){handled=true;w.Dispatcher.BeginInvoke(new Action(Show));return IntPtr.Zero;}if(msg==0x312){handled=true;if(Get<TextBox>("CloseHotkeyInput").IsKeyboardFocused||Get<TextBox>("RestoreHotkeyInput").IsKeyboardFocused||busy)return IntPtr.Zero;Guard(delegate{bool restore=wp.ToInt32()==2;if(closeKey.Code==restoreKey.Code)restore=Policy.SharedAction(history.Any(x=>x.ItemStatus=="configured"&&x.Selected)||db.Query("SELECT id FROM items WHERE status IN ('closed','launchfailed') LIMIT 1").Count>0)=="restore";HotkeyAction(restore);});}return IntPtr.Zero;}
   void SaveSettings(){lock(db.SyncRoot){bool oldAuto=startupAuto,oldAdmin=startupAdmin;bool startupApplied=false;
    try{if(!demo&&(editClose.Code!=closeKey.Code||editRestore.Code!=restoreKey.Code))RegisterKeys(editClose,editRestore);}catch(Exception original){try{if(!demo)RegisterKeys(closeKey,restoreKey);}catch(Exception rollback){throw new InvalidOperationException(original.Message+"\n原快捷键也未能恢复："+rollback.Message);}throw;}
    try{db.Execute("BEGIN IMMEDIATE");db.Set("closeHotkey",editClose.Code);db.Set("restoreHotkey",editRestore.Code);db.Set("fontFamily",Appearance.Resolve(Get<ComboBox>("FontFamilyInput").SelectedValue as string??w.FontFamily.Source).Source);
